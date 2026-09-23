@@ -1,13 +1,9 @@
-# 🌙Cozy Web Portfolio
+# 🌙 Stargazer Islands
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Status-Work_in_Progress-blueviolet?style=for-the-badge&logo=code-magic" alt="Work in Progress Badge" />
+  <img src="https://img.shields.io/badge/Status-Finished-success?style=for-the-badge" alt="Finished Badge" />
   <img src="https://img.shields.io/badge/License-MIT-success?style=for-the-badge" alt="MIT License Badge" />
 </div>
-
-<h3 align="center">
-  ⚠️ It's still at the very beginning, so don't expect too much pls
-</h3>
 
 ---
 

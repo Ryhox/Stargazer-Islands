@@ -1,19 +1,26 @@
 // Device capability + viewport helpers shared across the UI and scene.
 //
 // IS_TOUCH is the one source of truth for "show touch controls instead of
-// keyboard hints". It's a load-time constant: a device's *input capability*
-// doesn't change while the page is open (unlike its size, which we track
-// reactively via useViewport). We treat anything with a coarse, hover-less
-// pointer OR a positive maxTouchPoints as touch — covers phones, tablets and
-// touch laptops (which then simply get both schemes available).
+// keyboard hints". It's a load-time constant (it also sets scatter density when
+// the world is built). Only a device whose PRIMARY input is a finger — coarse
+// pointer, no hover: phones and tablets — counts as touch. A laptop with a
+// touchscreen still has a mouse/trackpad as its primary pointer, and a narrow
+// desktop window is still a desktop, so both get keyboard + mouse controls.
 import { useEffect, useState } from 'react'
 
 const hasWindow = typeof window !== 'undefined'
+const TOUCH_QUERY = '(hover: none) and (pointer: coarse)'
 
-export const IS_TOUCH =
-  hasWindow &&
-  ((window.matchMedia?.('(hover: none) and (pointer: coarse)').matches ?? false) ||
-    (navigator.maxTouchPoints ?? 0) > 0)
+export const IS_TOUCH = hasWindow && (window.matchMedia?.(TOUCH_QUERY).matches ?? false)
+
+// If the primary input changes while the page is open (e.g. toggling the browser
+// dev tools' phone emulation, or docking a tablet into a keyboard), reload so the
+// controls AND the world density match the new device instead of getting stuck.
+if (hasWindow && window.matchMedia) {
+  window.matchMedia(TOUCH_QUERY).addEventListener?.('change', (e) => {
+    if (e.matches !== IS_TOUCH) window.location.reload()
+  })
+}
 
 // A small phone (used to thin particles / shrink HUD a touch further). Based on
 // the *shorter* edge so it's orientation-independent.

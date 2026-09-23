@@ -13,8 +13,8 @@ export type Quality = 'Low' | 'Medium' | 'High'
 export const QUALITY_ORDER: Quality[] = ['Low', 'Medium', 'High']
 
 // UI language. The settings sheet's flag dropdown writes this; every piece of
-// user-facing text reads it through src/i18n. Persisted to localStorage and, on a
-// fresh visit, guessed from the browser's preferred language.
+// user-facing text reads it through src/i18n. Persisted to localStorage; a fresh
+// visit starts in English.
 export type Lang = 'en' | 'de' | 'it' | 'zh' | 'es' | 'fr' | 'ru' | 'ja' | 'pt' | 'ko'
 export const LANGS: Lang[] = ['en', 'de', 'it', 'zh', 'es', 'fr', 'ru', 'ja', 'pt', 'ko']
 
@@ -24,8 +24,7 @@ function initialLang(): Lang {
     const saved = window.localStorage.getItem('lang') as Lang | null
     if (saved && LANGS.includes(saved)) return saved
   } catch { /* localStorage may be blocked */ }
-  const nav = (navigator.languages?.[0] || navigator.language || 'en').slice(0, 2).toLowerCase()
-  return (LANGS as string[]).includes(nav) ? (nav as Lang) : 'en'
+  return 'en' // English by default (not the device language); settings can change it
 }
 
 // The little to-do list shown bottom-left. Each flag flips true the first time the
@@ -59,7 +58,7 @@ export type WorldState = {
   worldVisible: boolean  // true once the ring starts expanding → fade-in sky/water/particles
   boatMode: 'parked' | 'sailing' // whether the player is currently sailing the boat
   boardPrompt: boolean   // near the stranded boat → show the "press E" interact prompt
-  mapId: 'home' | 'archipelago' // which world is mounted: the home island or the archipelago
+  mapId: 'home' | 'archipelago' // which REGION of the one world you're in (home isle vs the stargazer isles), derived from position
   mapOpen: boolean       // the full-screen world map overlay is open (freezes the player)
   infoOpen: boolean      // the island rarity/info panel is open (toggled with I on an island)
   aboutOpen: boolean     // the "About me" panel is open (toggled with E at the Heartwood portrait)

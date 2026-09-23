@@ -30,9 +30,9 @@ Grab a warm cup of herbal tea, rest your feet by the virtual campfire, and enjoy
 
 ## ⭐ Get your own island
 
-This portfolio has a second world — **The Archipelago** — and **every person who stars this repo gets their own permanent island in it.** ⭐ → 🏝️
+My home isle sits in the middle of a sea — **The Archipelago** — and **every person who stars this repo gets their own permanent island out there.** ⭐ → 🏝️
 
-Set sail from the home isle (board the boat with **E**), open the **world map (M)**, and search any stargazer's GitHub username to visit their island. Star the repo and your island appears on everyone's map within ~5 minutes (the map shows a shared countdown to the next refresh).
+The world map opens as soon as the page loads: pick my home isle in the middle, or any stargazer's island. Once you're in, board the boat (**E**) and sail over — it's all one world — or press **M** anytime to search a GitHub username and hop straight there. Star the repo and your island appears on everyone's map within ~5 minutes (the map shows a shared countdown to the next refresh).
 
 ### How your island is made
 

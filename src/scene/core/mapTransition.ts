@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
-// MAP TRANSITION — the fade that carries you between the home isle and the
-// archipelago, plus the small shared singletons the HUD overlays read each frame
+// MAP TRANSITION — the fade that carries you across the one world (map picks,
+// hold-E-to-return), plus the small shared singletons the HUD overlays read each frame
 // (the fade veil, the hold-E-to-return progress, and the "entering X's Island"
 // banner). Kept off React state like NAV/SWIM so per-frame updates never
 // re-render; GSAP animates the veil alpha.
@@ -10,11 +10,10 @@ import gsap from 'gsap'
 import * as THREE from 'three'
 import { useWorld } from '../../state/useWorld'
 import { tg } from '../../i18n/index'
-import { setActiveMap, getHeight } from '../terrain/terrain'
+import { getHeight } from '../terrain/terrain'
 import { SPAWN_X, SPAWN_Z, SPAWN_LOOK } from './spawnConstants'
 import { BOAT, NAV, strandBoat } from '../boat/boatState'
 import {
-  ARCH_SPAWN,
   useArchipelago,
   type IslandInstance,
   type IslandStats,
@@ -93,66 +92,29 @@ function placeAtIsland(isl: IslandInstance) {
   useWorld.getState().setBoardPrompt(false)
 }
 
-// Home isle → archipelago. With a target island you arrive ON it (chosen from
-// the world map you open when you set sail); without one you arrive sailing at
-// the archipelago centre.
-export function enterArchipelago(target?: IslandInstance) {
-  if (busy || useWorld.getState().mapId !== 'home') return
-  busy = true
-  clearBanner()
-  // Build the islands during the fade-out so they're ready when we flip.
-  useArchipelago.getState().ensureLoaded()
-
-  TRANSITION.label = tg('transition.settingSail')
-  const tl = gsap.timeline({
-    onComplete: () => {
-      busy = false
-    },
-  })
-  tl.to(TRANSITION, { alpha: 1, duration: 0.5, ease: 'power2.in' })
-  tl.add(() => {
-    setActiveMap('archipelago')
-    useWorld.getState().setMapId('archipelago')
-    if (target) {
-      placeAtIsland(target)
-    } else {
-      BOAT.x = ARCH_SPAWN.x
-      BOAT.z = ARCH_SPAWN.z
-      BOAT.heading = ARCH_SPAWN.heading
-      BOAT.mode = 'sailing'
-      BOAT.speed = 0
-      BOAT.throttle = 0
-      BOAT.turn = 0
-      NAV.sailing = true
-      NAV.px = BOAT.x
-      NAV.pz = BOAT.z
-      TELEPORT.pending = true
-      TELEPORT.setPos = false
-      TELEPORT.yaw = 0
-      TELEPORT.pitch = -0.06
-      useWorld.getState().setBoatMode('sailing')
-      useWorld.getState().setBoardPrompt(false)
-    }
-  })
-  tl.to(TRANSITION, { alpha: 0, duration: 0.7, ease: 'power2.out' }, '+=0.15')
-}
-
-// Archipelago → home isle. Triggered by holding E for 3s, or the hold indicator.
-export function returnHome() {
-  if (busy || useWorld.getState().mapId !== 'archipelago') return
+// One world: the home isle and the stargazer isles share the same sea, so you can
+// simply sail between them. The world map's picks are shortcuts — a quick fade
+// that drops you there. Picking an island seats you in the boat off its shore;
+// picking the home isle lands you back at the usual spawn, on foot.
+function fadeTeleport(label: string, place: () => void) {
+  if (busy) return
   busy = true
   EHOLD.progress = 0
   clearBanner()
-
-  TRANSITION.label = tg('transition.comingAshore')
+  TRANSITION.label = label
   const tl = gsap.timeline({
     onComplete: () => {
       busy = false
     },
   })
-  tl.to(TRANSITION, { alpha: 1, duration: 0.5, ease: 'power2.in' })
-  tl.add(() => {
-    setActiveMap('home')
+  tl.to(TRANSITION, { alpha: 1, duration: 0.45, ease: 'power2.in' })
+  tl.add(place)
+  tl.to(TRANSITION, { alpha: 0, duration: 0.6, ease: 'power2.out' }, '+=0.12')
+}
+
+// Back to the home isle's spawn pose (hold E out on the isles, or pick it on the map).
+export function returnHome() {
+  fadeTeleport(tg('transition.comingAshore'), () => {
     strandBoat() // the boat goes back to the south beach…
     BOAT.mode = 'parked'
     NAV.sailing = false
@@ -176,26 +138,20 @@ export function returnHome() {
     useWorld.getState().setBoardPrompt(false)
     useWorld.getState().setMapId('home')
   })
-  tl.to(TRANSITION, { alpha: 0, duration: 0.7, ease: 'power2.out' }, '+=0.15')
 }
 
-// Hop to an island while already in the archipelago.
-export function teleportToIsland(isl: IslandInstance) {
-  if (busy || useWorld.getState().mapId !== 'archipelago') return
-  placeAtIsland(isl)
-}
-
-// World-map "travel here": from the home isle, sail across and arrive on the
-// island; from the archipelago, hop straight to it.
+// World-map "travel here": drop the boat (you seated in it) off that island.
 export function goToIsland(isl: IslandInstance) {
-  if (useWorld.getState().mapId === 'archipelago') teleportToIsland(isl)
-  else enterArchipelago(isl)
+  useArchipelago.getState().ensureLoaded()
+  fadeTeleport(tg('transition.settingSail'), () => {
+    placeAtIsland(isl)
+    useWorld.getState().setMapId('archipelago')
+  })
 }
 
 // Dev convenience — drive the crossing from the screenshot harness.
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   ;(window as unknown as { __arch: unknown }).__arch = {
-    enter: enterArchipelago,
     home: returnHome,
     islands: () => useArchipelago.getState().islands,
     go: (i: number) => goToIsland(useArchipelago.getState().islands[i]),

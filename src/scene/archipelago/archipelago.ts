@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// THE ARCHIPELAGO — the second map. Each GitHub stargazer becomes one permanent
+// THE ARCHIPELAGO — the stargazer isles, out around the home isle in one world. Each GitHub stargazer becomes one permanent
 // island. Everything is a pure function of the (ordered) stargazer list, so
 // nothing needs saving on a server:
 //   • POSITION comes from star-RANK (your rank never changes once you've
@@ -14,10 +14,8 @@ import { create } from 'zustand'
 import { createNoise2D } from 'simplex-noise'
 import * as THREE from 'three'
 import {
-  getActiveMap,
   registerArchHeight,
   sampleDisc,
-  setActiveMap,
   type Placed,
 } from '../terrain/terrain'
 import { smoothstep } from '../core/palette'
@@ -98,7 +96,10 @@ function fbm(x: number, z: number, octaves: number, freq: number) {
 // --- cluster layout (one cluster per theme, REALLY far apart) ----------------
 export const GROUP_RING = 460 // each theme's cluster centre sits this far from spawn
 const CLUSTER_SPACING = 32 // phyllotaxis spacing of islands within a cluster (cosy)
-const MIN_CENTER = 40 // keep the spawn (boat) area at the origin clear
+// Ryhox's home isle is drawn at the map centre (the origin). No stargazer shore
+// may come closer to it than this, so the home isle always stands on its own.
+export const HOME_CLEAR = 240
+export const HOME_MAP_RADIUS = 68 // pick/highlight radius of the home isle on the world map
 const MARGIN = 20 // min open water between island shores (close, not touching)
 const GOLDEN = Math.PI * (3 - Math.sqrt(5))
 
@@ -119,7 +120,7 @@ function clusterPos(group: number, slot: number): { cx: number; cz: number } {
   return { cx: c.x + Math.cos(ang) * r, cz: c.z + Math.sin(ang) * r }
 }
 
-// Deterministic relaxation: nudge overlapping islands apart and off the spawn.
+// Deterministic relaxation: nudge overlapping islands apart and clear of the home isle.
 function relax(islands: IslandInstance[]) {
   // Space islands by their *bulged* radius (lobes reach radius·SHORE_MAX), so two
   // coastlines facing each other still keep MARGIN of open water between them.
@@ -129,7 +130,7 @@ function relax(islands: IslandInstance[]) {
       const ra = a.radius * SHORE_MAX
       if (!a.isMother) {
         const dc = Math.hypot(a.cx, a.cz) || 1
-        const minC = MIN_CENTER + ra
+        const minC = HOME_CLEAR + ra
         if (dc < minC) {
           const s = minC / dc
           a.cx *= s
@@ -156,6 +157,17 @@ function relax(islands: IslandInstance[]) {
           b.cz += dz * push * wb
         }
       }
+    }
+  }
+  // Hard guarantee: a pair push above can shove an island back inward, so enforce
+  // the home-isle clearance once more after everything has settled.
+  for (const a of islands) {
+    if (a.isMother) continue
+    const dc = Math.hypot(a.cx, a.cz) || 1
+    const minC = HOME_CLEAR + a.radius * SHORE_MAX
+    if (dc < minC) {
+      a.cx *= minC / dc
+      a.cz *= minC / dc
     }
   }
 }
@@ -521,8 +533,6 @@ function splitVariants(points: Placed[], models: string[], seed: number) {
 }
 
 function buildArchPlacements(islands: IslandInstance[]): ArchEntry[] {
-  const prev = getActiveMap()
-  setActiveMap('archipelago') // so sampleDisc samples archipelago terrain
   const out: ArchEntry[] = []
   for (const isl of islands) {
     const refR = (isl.size.rMin + isl.size.rMax) / 2
@@ -576,7 +586,6 @@ function buildArchPlacements(islands: IslandInstance[]): ArchEntry[] {
       }
     })
   }
-  setActiveMap(prev)
   return out
 }
 

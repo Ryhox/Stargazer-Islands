@@ -6,7 +6,6 @@ import { NAV } from '../../scene/boat/boatState'
 import { buildMapProps, type MapProp } from '../../scene/terrain/placement'
 import {
   archDominantIsland,
-  archHeight,
   archipelagoExtent,
   buildArchMapProps,
   groupLabels,
@@ -72,8 +71,9 @@ export function Minimap() {
     const isArch = mapId === 'archipelago'
     const rWorld = isArch ? Math.max(R_WORLD_HOME, archipelagoExtent() + 30) : R_WORLD_HOME
     rWorldRef.current = rWorld
-    islandRef.current = buildMap(isArch ? archHeight : getHeight, rWorld, 320, isArch ? archMapColor : undefined)
-    propsRef.current = isArch ? buildArchMapProps(islands) : buildMapProps()
+    // One world: out on the isles the map spans everything (home isle included).
+    islandRef.current = buildMap(getHeight, rWorld, isArch ? 420 : 320, isArch ? archMapColor : undefined)
+    propsRef.current = isArch ? [...buildMapProps(), ...buildArchMapProps(islands)] : buildMapProps()
     labelsRef.current = isArch ? groupLabels(islands) : []
 
     const canvas = canvasRef.current
@@ -233,10 +233,6 @@ export function Minimap() {
               <div style={sHintRow}>
                 <span style={sHintCap}>Hold E</span>
                 <span style={sHintLabel}>{t('minimap.sailHome')}</span>
-              </div>
-              <div style={sHintRow}>
-                <span style={sHintCap}>M</span>
-                <span style={sHintLabel}>{t('minimap.worldMap')}</span>
               </div>
             </div>
           )}

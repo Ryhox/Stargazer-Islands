@@ -23,7 +23,7 @@ export function Water() {
   }, [])
 
   useFrame((state, delta) => {
-    const { worldVisible, started, mapId } = useWorld.getState()
+    const { worldVisible, started } = useWorld.getState()
     if (meshRef.current) meshRef.current.visible = worldVisible
     if (!worldVisible) return
 
@@ -51,10 +51,10 @@ export function Water() {
     u.uRippleCenter.value.copy(RIPPLE.center)
     u.uRippleSize.value = RIPPLE.size
 
-    // foam: the home isle uses its shore ring; the archipelago gives each nearby
-    // island its own ring (and turns the home ring off so it doesn't stray here).
-    if (mapId === 'archipelago') {
-      u.uHomeFoamOn.value = 0
+    // foam: the home isle keeps its baked shore ring, and each stargazer isle near
+    // you gets its own ring (they share one sea).
+    u.uHomeFoamOn.value = 1
+    {
       foamTimer.current += delta
       if (foamTimer.current > 0.15) {
         foamTimer.current = 0
@@ -67,9 +67,6 @@ export function Water() {
         }
         u.uIslandCount.value = near.length
       }
-    } else {
-      u.uHomeFoamOn.value = 1
-      u.uIslandCount.value = 0
     }
   })
 

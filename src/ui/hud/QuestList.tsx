@@ -114,7 +114,7 @@ function Row({ item, done, n }: { item: Item; done: boolean; n: number }) {
           style={{
             ...sLabel,
             color: nameColor,
-            textDecoration: done ? 'line-through' : 'none',
+            textDecorationLine: done ? 'line-through' : 'none',
             textDecorationColor: DONE_GREEN,
           }}
         >

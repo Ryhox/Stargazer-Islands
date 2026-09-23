@@ -1,7 +1,6 @@
 import { Suspense, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { patchReveal } from '../terrain/patchReveal'
-import { setActiveMap } from '../terrain/terrain'
 import { ArchipelagoScatter } from './ArchipelagoScatter'
 import { archColorAt, islandHeightAt, useArchipelago, type IslandInstance } from './archipelago'
 
@@ -48,12 +47,10 @@ export function ArchipelagoLand() {
   const islands = useArchipelago((s) => s.islands)
   const ensureLoaded = useArchipelago((s) => s.ensureLoaded)
 
-  // While this land is mounted, the shared getHeight serves archipelago terrain
-  // (drives the boat + player physics). Restored to the home field on unmount.
+  // The stargazer isles share the world with the home isle (getHeight blends the
+  // two fields), so they just load and stay mounted.
   useEffect(() => {
-    setActiveMap('archipelago')
     ensureLoaded()
-    return () => setActiveMap('home')
   }, [ensureLoaded])
 
   return (

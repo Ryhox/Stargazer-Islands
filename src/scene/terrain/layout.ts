@@ -153,21 +153,54 @@ export const WEST_DENSE: V2[] = buildDensePath(WEST_WAYPOINTS)
 // Every trail branch, for the stone/flower placement and the dirt-colour test.
 export const ALL_DENSE: V2[][] = [PATH_DENSE, SOCIAL_DENSE, WEST_DENSE]
 
-// Shortest distance from (x,z) to a single densified polyline.
-function distToPolyline(x: number, z: number, pts: V2[]): number {
-  let best = Infinity
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = pts[i]
-    const b = pts[i + 1]
-    const dx = b.x - a.x
-    const dz = b.z - a.z
-    const len2 = dx * dx + dz * dz || 1e-6
-    let t = ((x - a.x) * dx + (z - a.z) * dz) / len2
-    t = t < 0 ? 0 : t > 1 ? 1 : t
-    const cx = a.x + dx * t
-    const cz = a.z + dz * t
-    const d = Math.hypot(x - cx, z - cz)
-    if (d < best) best = d
+// The height field samples path distance hundreds of thousands of times at load
+// (island mesh, baked shore field, placement), so each polyline is split into
+// chunks with a bounding box: a chunk whose box is already farther than the best
+// segment found so far can't contain a closer one and is skipped. Exact result.
+const CHUNK = 12
+type Chunk = { start: number; end: number; minX: number; maxX: number; minZ: number; maxZ: number }
+const chunkCache = new WeakMap<V2[], Chunk[]>()
+function chunksOf(pts: V2[]): Chunk[] {
+  let chunks = chunkCache.get(pts)
+  if (chunks) return chunks
+  chunks = []
+  for (let s = 0; s < pts.length - 1; s += CHUNK) {
+    const end = Math.min(s + CHUNK, pts.length - 1) // last segment index is end-1 → end
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity
+    for (let i = s; i <= end; i++) {
+      const p = pts[i]
+      if (p.x < minX) minX = p.x
+      if (p.x > maxX) maxX = p.x
+      if (p.z < minZ) minZ = p.z
+      if (p.z > maxZ) maxZ = p.z
+    }
+    chunks.push({ start: s, end, minX, maxX, minZ, maxZ })
+  }
+  chunkCache.set(pts, chunks)
+  return chunks
+}
+
+// Shortest distance from (x,z) to a single densified polyline. With a `cap`, any
+// distance >= cap is reported as cap (lets far-away samples skip every chunk).
+function distToPolyline(x: number, z: number, pts: V2[], cap = Infinity): number {
+  let best = cap
+  for (const c of chunksOf(pts)) {
+    const bx = x < c.minX ? c.minX - x : x > c.maxX ? x - c.maxX : 0
+    const bz = z < c.minZ ? c.minZ - z : z > c.maxZ ? z - c.maxZ : 0
+    if (bx * bx + bz * bz >= best * best) continue
+    for (let i = c.start; i < c.end; i++) {
+      const a = pts[i]
+      const b = pts[i + 1]
+      const dx = b.x - a.x
+      const dz = b.z - a.z
+      const len2 = dx * dx + dz * dz || 1e-6
+      let t = ((x - a.x) * dx + (z - a.z) * dz) / len2
+      t = t < 0 ? 0 : t > 1 ? 1 : t
+      const cx = a.x + dx * t
+      const cz = a.z + dz * t
+      const d = Math.hypot(x - cx, z - cz)
+      if (d < best) best = d
+    }
   }
   return best
 }
@@ -190,6 +223,16 @@ export function distToMainPath(x: number, z: number): number {
 export function distToSocialPath(x: number, z: number): number {
   return distToPolyline(x, z, SOCIAL_DENSE)
 }
-export function distToWestPath(x: number, z: number): number {
-  return distToPolyline(x, z, WEST_DENSE)
+export function distToWestPath(x: number, z: number, cap = Infinity): number {
+  return distToPolyline(x, z, WEST_DENSE, cap)
+}
+
+// distToPath clamped to `cap` — for the height field, which only reacts to trails
+// within a few metres and samples this hundreds of thousands of times at load.
+export function distToPathCapped(x: number, z: number, cap: number): number {
+  return Math.min(
+    distToPolyline(x, z, PATH_DENSE, cap),
+    distToPolyline(x, z, SOCIAL_DENSE, cap),
+    distToPolyline(x, z, WEST_DENSE, cap),
+  )
 }

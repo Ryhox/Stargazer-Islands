@@ -13,6 +13,7 @@ import {
   WATER_LEVEL,
   distToMainPath,
   distToPath,
+  distToPathCapped,
   distToSocialPath,
   distToWestPath,
 } from './layout'
@@ -52,34 +53,56 @@ function fbm(x: number, z: number, octaves: number, freq: number) {
   return sum / norm // -1..1
 }
 
-// --- map dispatch -----------------------------------------------------------
+// --- one world --------------------------------------------------------------
 // getHeight is the single ground field the whole sim samples: the island mesh,
 // prop placement (sampleDisc), the player's walk/swim follow, the boat's sailing
-// collision, parkedPose/launchBoat, and the minimap. It dispatches to the active
-// map so a second world (the archipelago) transparently drives the same physics
-// with no branching at the call sites. The archipelago registers its height fn at
-// import (registerArchHeight) so terrain.ts never imports it — no circular dep.
+// collision, parkedPose/launchBoat, and the minimap. Home isle and archipelago
+// share ONE world: the home isle sits at the origin and every stargazer isle is
+// kept at least HOME_CLEAR (240) away, so the home field serves the inner disc,
+// the archipelago field everything past it, blended across open deep water. The
+// archipelago registers its height fn at import (registerArchHeight) so
+// terrain.ts never imports it — no circular dep.
 export type MapId = 'home' | 'archipelago'
-let ACTIVE_MAP: MapId = 'home'
-export function setActiveMap(m: MapId) {
-  ACTIVE_MAP = m
-}
-export function getActiveMap(): MapId {
-  return ACTIVE_MAP
-}
+// Region radius: inside it you're "at home" (HUD, to-do list, home sea life);
+// outside it you're out among the stargazer isles.
+export const HOME_REGION_R = 150
+const BLEND_IN = 140
+const BLEND_OUT = 170
 let _archHeight: ((x: number, z: number) => number) | null = null
 export function registerArchHeight(fn: (x: number, z: number) => number) {
   _archHeight = fn
 }
 
 export function getHeight(x: number, z: number): number {
-  if (ACTIVE_MAP === 'archipelago' && _archHeight) return _archHeight(x, z)
-  return homeHeight(x, z)
+  if (!_archHeight) return homeHeight(x, z)
+  const r = Math.hypot(x, z)
+  if (r <= BLEND_IN) return homeHeight(x, z)
+  if (r >= BLEND_OUT) return _archHeight(x, z)
+  const t = (r - BLEND_IN) / (BLEND_OUT - BLEND_IN)
+  return homeHeight(x, z) * (1 - t) + _archHeight(x, z) * t
 }
 
 function homeHeight(x: number, z: number): number {
   const r = Math.hypot(x, z)
-  const coast = noise(x * 0.015, z * 0.015) * 9 // irregular coastline
+  let coast = noise(x * 0.015, z * 0.015) * 9 // irregular coastline
+  // Bold bays + headlands so the isle has a characterful silhouette. Only the OUTER
+  // shore is reshaped (nothing inside r≈38: hill, paths, pedestals, board, nook),
+  // and the south side — spawn, isthmus, sakura islet — is left exactly as it was.
+  {
+    const ang = Math.atan2(z, x)
+    const outer = smoothstep(36, 56, r)
+    const south = smoothstep(0.35, 0.8, z / (r || 1))
+    if (outer > 0 && south < 1) {
+      const lobes =
+        9 * Math.cos(2 * ang - 0.8) + // stretch into an oval (long axis NW–SE)
+        13 * Math.sin(3 * ang + 0.8) + // three big bays / three headlands
+        7 * Math.sin(5 * ang + 2.3)
+      // >0 carves a bay, <0 pushes a headland out. Soft-limited (tanh), never a
+      // hard clamp, so bays and headlands stay rounded instead of getting corners.
+      const soft = lobes > 0 ? 24 * Math.tanh(lobes / 24) : 13 * Math.tanh(lobes / 13)
+      coast += soft * outer * (1 - south)
+    }
+  }
   const edge = (r + coast) / ISLAND_RADIUS // ~0 centre, ~1 at shore
 
   const mask = 1 - smoothstep(0.46, 0.99, edge)
@@ -101,7 +124,7 @@ function homeHeight(x: number, z: number): number {
   // distToPath covers every trail branch (climb, social fork, west spur), so each is
   // flattened + slightly recessed the same way and the stones lie flush on all of
   // them. Only the narrow path corridor is touched — the hill/island are untouched.
-  const onPath = smoothstep(7.0, 3.0, distToPath(x, z))
+  const onPath = smoothstep(7.0, 3.0, distToPathCapped(x, z, 7.0))
   const dNook = Math.hypot(x - NOOK.x, z - NOOK.z)
   const inNook = smoothstep(NOOK.r, NOOK.r * 0.4, dNook)
   // Flat summit clearing — suppresses bumpy detail on the hilltop plateau
@@ -116,7 +139,7 @@ function homeHeight(x: number, z: number): number {
 
   // The west spur reads better as a gentle RAISED dirt trail than a recessed one on
   // the hill's shoulder — lift just that path corridor a touch (smoothly blended).
-  h += smoothstep(3.6, 1.4, distToWestPath(x, z)) * 0.1
+  h += smoothstep(3.6, 1.4, distToWestPath(x, z, 3.6)) * 0.1
 
   // Flat dais beside the tree for the social pedestals: level the ground to the
   // height at the arc centre, blended out past flatR. Guarded against recursion

@@ -5,7 +5,7 @@ import { useWorld } from '../../state/useWorld'
 import { smoothstep } from './palette'
 import { buildColliders, buildSteps } from '../terrain/placement'
 import { setLockFn, requestLock } from './pointerLock'
-import { WATER_LEVEL, getHeight } from '../terrain/terrain'
+import { HOME_REGION_R, WATER_LEVEL, getHeight } from '../terrain/terrain'
 import { SPAWN_X, SPAWN_Z, SPAWN_LOOK } from './spawnConstants'
 import { waveHeight } from '../ocean/oceanWave'
 import { seabedHeight } from '../ocean/seabedField'
@@ -23,7 +23,7 @@ import {
 import { BOARD_FOCUS } from '../boat/boardFocus'
 import { SIT } from '../interact/benchSit'
 import { archColliders, archSteps, archipelagoExtent, islandStats, nearestIsland, useArchipelago } from '../archipelago/archipelago'
-import { EHOLD, ENTERING, TELEPORT, enterArchipelago, isTransitioning, returnHome } from './mapTransition'
+import { EHOLD, ENTERING, TELEPORT, isTransitioning, returnHome } from './mapTransition'
 import { INPUT } from '../../input/input'
 
 // Scratch objects reused each frame (no per-frame allocation).
@@ -39,10 +39,8 @@ const SPRINT = 1.9
 const PLAYER_R = 0.45 // wanderer's body radius for prop collision
 const SWIM_LIMIT = 220 // soft boundary: a gentle current eases you back past this
 const BUOY = 0.2 // gentle float back toward the surface when not swimming down
-const HORIZON_R = 150 // sail past this radius on the home sea → cross to the archipelago
 const ENTER_BAND = 16 // within this distance of an island's shore → raise its banner
 const HOLD_SECS = 3 // hold E this long (s) in the archipelago to sail home
-const NO_SEA_ROCKS: typeof SEA_ROCKS = [] // home-only sea-stacks; empty on the archipelago
 
 // First-person wanderer: pointer-lock look + WASD. On land it's glued to the
 // ground with a head-bob; walk off any shore and it smoothly transitions to
@@ -68,16 +66,10 @@ export function Player() {
   const started = useWorld((s) => s.started)
   const menuOpen = useWorld((s) => s.menuOpen)
   const mapOpen = useWorld((s) => s.mapOpen)
-  const mapId = useWorld((s) => s.mapId)
   const islands = useArchipelago((s) => s.islands)
-  const colliders = useMemo(
-    () => (mapId === 'archipelago' ? archColliders(islands) : buildColliders()),
-    [mapId, islands],
-  )
-  const steps = useMemo(
-    () => (mapId === 'archipelago' ? archSteps(islands) : buildSteps()),
-    [mapId, islands],
-  )
+  // One world: the home isle's solids and every stargazer isle's, all at once.
+  const colliders = useMemo(() => [...buildColliders(), ...archColliders(islands)], [islands])
+  const steps = useMemo(() => [...buildSteps(), ...archSteps(islands)], [islands])
 
   const look = useRef(new THREE.Vector3())
   const fwd = useRef(new THREE.Vector3())
@@ -245,6 +237,15 @@ export function Player() {
   // Raise the "you are entering <island>" banner + luck card when you're within
   // ENTER_BAND of an island's shore. Called both while sailing (boat position)
   // and on foot (camera position), so the text updates either way.
+  // Which region of the one world you're in (drives the HUD: to-do list at home,
+  // stargazer tally out on the isles). A little hysteresis so it never flickers.
+  const updateRegion = (x: number, z: number) => {
+    const r = Math.hypot(x, z)
+    const next = r < HOME_REGION_R - 10 ? 'home' : r > HOME_REGION_R + 10 ? 'archipelago' : null
+    const ws = useWorld.getState()
+    if (next && next !== ws.mapId) ws.setMapId(next)
+  }
+
   const updateEntering = (x: number, z: number) => {
     const ni = nearestIsland(x, z)
     if (ni && ni.edgeDist < ENTER_BAND) {
@@ -326,14 +327,9 @@ export function Player() {
         if (eWasDown.current && !eConsumed.current) {
           if (BOAT.mode === 'parked') {
             if (BOAT.near) {
-              if (ws.mapId === 'home') {
-                // Board on the home isle → open the world map to choose where to
-                // sail; picking an island carries you across to it.
-                keys.current = {}
-                useArchipelago.getState().ensureLoaded()
-                ws.setMapOpen(true)
-              } else {
-                // Island-hopping: local sailing between the isles.
+              {
+                // Push off and sail — the stargazer isles are out there on the same
+                // sea (M opens the map for a quick hop).
                 launchBoat()
                 BOAT.mode = 'sailing'
                 BOAT.speed = 0
@@ -410,13 +406,12 @@ export function Player() {
       // Gentle current easing you back inside the sailable area. On the home sea,
       // crossing the horizon instead carries you off to the archipelago.
       const rr = Math.hypot(BOAT.x, BOAT.z)
-      const sailLimit = ws.mapId === 'archipelago' ? archipelagoExtent() + 50 : BOAT_SAIL_LIMIT
+      const sailLimit = Math.max(BOAT_SAIL_LIMIT, archipelagoExtent() + 50)
       if (rr > sailLimit) {
         const s = (sailLimit + (rr - sailLimit) * (1 - Math.min(1, dt * 0.8))) / rr
         BOAT.x *= s
         BOAT.z *= s
       }
-      if (ws.mapId === 'home' && rr > HORIZON_R) enterArchipelago()
       // Float on the swell, with a touch of bow-lift from speed.
       floatPose(time)
       BOAT.pitch -= Math.min(0.14, Math.abs(BOAT.speed) * 0.008) * Math.sign(BOAT.speed)
@@ -439,7 +434,8 @@ export function Player() {
       NAV.fz = f.z
       NAV.sailing = true
       // Near an island → raise the "entering X's Island" banner + luck card.
-      if (ws.mapId === 'archipelago') updateEntering(BOAT.x, BOAT.z)
+      updateRegion(BOAT.x, BOAT.z)
+      updateEntering(BOAT.x, BOAT.z)
       return
     }
     // Keep the parked hull beached (or bobbing if you left it at sea).
@@ -491,7 +487,7 @@ export function Player() {
           camera.position.z += dz * push
         }
       }
-      for (const rk of ws.mapId === 'home' ? SEA_ROCKS : NO_SEA_ROCKS) {
+      for (const rk of SEA_ROCKS) {
         const dx = camera.position.x - rk.x
         const dz = camera.position.z - rk.z
         const rr = rk.r + PLAYER_R
@@ -522,7 +518,7 @@ export function Player() {
     // archipelago the playable area reaches the far clusters, so widen it to the
     // archipelago extent (mirrors the sailing limit); otherwise stepping ashore on
     // a distant island would drag you back toward the centre.
-    const walkLimit = ws.mapId === 'archipelago' ? archipelagoExtent() + 50 : SWIM_LIMIT
+    const walkLimit = Math.max(SWIM_LIMIT, archipelagoExtent() + 50)
     const r = Math.hypot(camera.position.x, camera.position.z)
     if (r > walkLimit) {
       const target = walkLimit + (r - walkLimit) * (1 - Math.min(1, dt * 0.8))
@@ -611,7 +607,8 @@ export function Player() {
     NAV.sailing = false
 
     // On foot in the archipelago, keep the entering banner + luck card current.
-    if (ws.mapId === 'archipelago') updateEntering(camera.position.x, camera.position.z)
+    updateRegion(camera.position.x, camera.position.z)
+    updateEntering(camera.position.x, camera.position.z)
   })
 
   return null

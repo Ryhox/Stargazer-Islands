@@ -173,6 +173,9 @@ export const ru: Record<StringKey, string> = {
   'map.motherIsle': 'Материнский остров',
   'map.teleport': 'Телепорт',
   'map.to': 'к',
+  'map.homeIsle': "Ryhox's Portfolio",
+  'map.homeMeta': 'Родной остров',
+  'map.startHint': 'Выбери, откуда начать: мой родной остров в центре',
 
   'transition.settingSail': 'Отплываем…',
   'transition.comingAshore': 'Причаливаем…',

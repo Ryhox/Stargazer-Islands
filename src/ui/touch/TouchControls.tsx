@@ -198,11 +198,9 @@ export function TouchControls() {
             )}
           </button>
         )}
-        {archipelago && (
-          <button type="button" style={sRound} onPointerDown={(e) => { e.preventDefault(); tapKey('KeyM') }} aria-label={t('touch.worldMapAria')}>
-            <MapGlyph />
-          </button>
-        )}
+        <button type="button" style={sRound} onPointerDown={(e) => { e.preventDefault(); tapKey('KeyM') }} aria-label={t('touch.worldMapAria')}>
+          <MapGlyph />
+        </button>
       </div>
 
       {/* Bottom-right: exit-only (Close / Leave / Stand up / Step ashore / Home). */}

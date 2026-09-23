@@ -4,6 +4,25 @@ import { useRef } from 'react'
 import { LITE } from '../core/config'
 import { useWorld } from '../../state/useWorld'
 import { MotionBlurEffect } from './motionBlurEffect'
+import { EffectComposer as PPEffectComposer } from 'postprocessing'
+import { Source, type DepthTexture } from 'three'
+
+// postprocessing 6.39 builds its "stable" depth texture with depthTexture.clone(),
+// and a three.js clone SHARES the image source — so depending on init order both
+// depth targets can end up on one GPU texture and every frame's depth copy blits
+// it onto itself (a flood of "glBlitFramebuffer … cannot be the same image").
+// Give the stable copy its own source so the two are always separate textures.
+{
+  type WithDepth = { depthRenderTarget: { depthTexture: DepthTexture } | null; createDepthTexture: () => DepthTexture }
+  const proto = PPEffectComposer.prototype as unknown as WithDepth
+  const create = proto.createDepthTexture
+  proto.createDepthTexture = function (this: WithDepth) {
+    const stable = create.call(this)
+    const img = stable.image as { width: number; height: number }
+    stable.source = new Source({ width: img.width, height: img.height })
+    return stable
+  }
+}
 
 // Custom temporal motion-blur effect, exposed as a composer child.
 const MotionBlur = wrapEffect(MotionBlurEffect)

@@ -9,8 +9,12 @@
 // ---------------------------------------------------------------------------
 
 const OWNER = 'Ryhox'
-const REPO = 'portfolio'
-const CACHE_KEY = 'archipelago.stargazers.v1'
+const REPO = 'Stargazer-Islands'
+const CACHE_KEY = 'archipelago.stargazers.v2'
+// GitHub's /stargazers endpoint now answers 401 without a token, so the list is
+// published as a static file by .github/workflows/stargazers.yml and read from
+// the raw CDN (CORS-enabled, no API rate limit).
+const DATA_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/stargazers-data/stargazers.json`
 const TTL = 5 * 60 * 1000 // serve cache without re-hitting the API for 5 min
 
 // Live-refresh cadence. Aligned to a UTC 5-min grid (floor to the grid, +1 step)
@@ -41,25 +45,19 @@ function writeCache(logins: string[]) {
   }
 }
 
-// Stargazers in ascending star date (so index = rank). The star+json media type
-// returns { starred_at, user:{login} }; fall back to plain user objects.
+// Stargazers in ascending star date (so index = rank), from the Action-published
+// JSON; the minute-bucket query busts stale CDN copies. (GitHub's /stargazers API
+// is not an option in the browser: it answers 401 without a token, and a token in
+// client code would be public.)
 async function fetchAll(): Promise<string[]> {
-  const out: string[] = []
-  for (let page = 1; page <= 10; page++) {
-    const res = await fetch(
-      `https://api.github.com/repos/${OWNER}/${REPO}/stargazers?per_page=100&page=${page}`,
-      { headers: { Accept: 'application/vnd.github.star+json' } },
-    )
-    if (!res.ok) throw new Error(`GitHub ${res.status}`)
-    const data = (await res.json()) as Array<{ user?: { login?: string }; login?: string }>
-    if (!Array.isArray(data) || data.length === 0) break
-    for (const item of data) {
-      const login = item?.user?.login ?? item?.login
-      if (typeof login === 'string') out.push(login)
-    }
-    if (data.length < 100) break
+  const res = await fetch(`${DATA_URL}?t=${Math.floor(Date.now() / 60000)}`, { cache: 'no-store' })
+  if (res.status === 404) {
+    throw new Error('stargazers.json not published yet: push the repo and let the "Publish stargazers" Action run once')
   }
-  return out
+  if (!res.ok) throw new Error(`stargazers.json ${res.status}`)
+  const data = (await res.json()) as { logins?: unknown }
+  if (!Array.isArray(data.logins)) throw new Error('stargazers.json: bad shape')
+  return data.logins.filter((l): l is string => typeof l === 'string')
 }
 
 // Returns the best list available NOW (cache or fetch). If it served a stale

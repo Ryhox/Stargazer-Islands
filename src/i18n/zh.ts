@@ -173,6 +173,9 @@ export const zh: Record<StringKey, string> = {
   'map.motherIsle': '母岛',
   'map.teleport': '传送',
   'map.to': '至',
+  'map.homeIsle': "Ryhox's Portfolio",
+  'map.homeMeta': '家园岛',
+  'map.startHint': '选择起点：我的家园岛在正中央',
 
   'transition.settingSail': '启航中…',
   'transition.comingAshore': '靠岸中…',

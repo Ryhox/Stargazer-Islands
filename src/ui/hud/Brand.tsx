@@ -33,7 +33,6 @@ export function Brand() {
   const started = useWorld((s) => s.started)
   const muted = useWorld((s) => s.muted)
   const boatMode = useWorld((s) => s.boatMode)
-  const mapId = useWorld((s) => s.mapId)
 
   // "N" toggles mute (M opens the world map — handled by WorldMap).
   useEffect(() => {
@@ -78,8 +77,8 @@ export function Brand() {
               <Hint cap="WASD" label={t('hint.steer')} />
               <Hint cap="Mouse" label={t('hint.look')} />
               <Hint cap="E" label={t('hint.stepAshore')} />
-              {mapId !== 'archipelago' && <Hint cap="Horizon" label={t('hint.newIsles')} />}
               <Hint cap="N" label={t('hint.mute')} indicator={<SpeakerIcon muted={muted} />} />
+              <Hint cap="M" label={t('minimap.worldMap')} />
               <Hint cap="ESC" label={t('hint.settings')} />
             </>
           ) : (
@@ -88,6 +87,7 @@ export function Brand() {
               <Hint cap="Mouse" label={t('hint.look')} />
               <Hint cap="Shift" label={t('hint.sprint')} />
               <Hint cap="N" label={t('hint.mute')} indicator={<SpeakerIcon muted={muted} />} />
+              <Hint cap="M" label={t('minimap.worldMap')} />
               <Hint cap="ESC" label={t('hint.settings')} />
             </>
           )}

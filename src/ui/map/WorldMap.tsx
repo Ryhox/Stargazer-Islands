@@ -2,18 +2,20 @@ import { type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEve
 import { useWorld } from '../../state/useWorld'
 import { IS_TOUCH } from '../../input/device'
 import { NAV } from '../../scene/boat/boatState'
-import { goToIsland } from '../../scene/core/mapTransition'
+import { goToIsland, returnHome } from '../../scene/core/mapTransition'
+import { introActions } from '../intro/introActions'
 import { requestLock } from '../../scene/core/pointerLock'
 import {
   archDominantIsland,
-  archHeight,
   archipelagoExtent,
   GROUP_RING,
   groupLabels,
+  HOME_MAP_RADIUS,
   useArchipelago,
   type IslandInstance,
 } from '../../scene/archipelago/archipelago'
 import { nextRefreshAt } from '../../scene/archipelago/stargazers'
+import { HOME_REGION_R, getHeight } from '../../scene/terrain/terrain'
 import { buildMap, hexToRgb, landRamp, seaRamp } from './mapRender'
 import { useT } from '../../i18n/index'
 import { HAND } from '../theme'
@@ -26,19 +28,36 @@ function archMapColor(x: number, z: number, h: number): number[] {
   return p ? landRamp(h, hexToRgb(p.sand), hexToRgb(p.grassLo), hexToRgb(p.grassHi)) : landRamp(h)
 }
 
-// The whole-archipelago map. Opened with M (in the isles) or by setting sail
-// from the home isle, where it doubles as the "choose where to go" picker. Shows
+// The whole-archipelago map. It's the START SCREEN (opens once loading is done),
+// then opens with M anywhere or by setting sail from the home isle. Ryhox's home
+// isle sits at the centre: pick it (or close the map) to begin on foot at the
+// usual spawn; pick a stargazer's island to sail straight there. Shows
 // every island with its owner on hover, the group names, your position, and a
 // search box — click an island (or a search hit) to travel there. Flat cozy
 // colours, hand-drawn font — no glow/blur/gradient.
 const CANVAS = 720 // square backing-store resolution (px)
 const MAX_RESULTS = 8
-const REPO_URL = 'https://github.com/Ryhox/portfolio'
+const REPO_URL = 'https://github.com/Ryhox/Stargazer-Islands'
 const ZOOM_MIN = 1
 const ZOOM_MAX = 4
 const ZOOM_STEP = 1.4 // per button press / wheel notch (wheel uses 1.2)
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
+
+// A map pick: a stargazer/mother island, or the home isle at the centre.
+type Pick = IslandInstance | 'home'
+
+// Map-only touch-up for the home isle (the 3D world is untouched): its noisy
+// coast is sampled through a small blur so it reads smooth like the stargazer
+// isles, with the same shallow-water outline.
+const BLUR = 2.2
+function mapHeight(x: number, z: number): number {
+  if (x * x + z * z > HOME_REGION_R * HOME_REGION_R) return getHeight(x, z)
+  return (
+    getHeight(x, z) * 0.4 +
+    (getHeight(x + BLUR, z) + getHeight(x - BLUR, z) + getHeight(x, z + BLUR) + getHeight(x, z - BLUR)) * 0.15
+  )
+}
 
 // The countdown shares the archipelago's UTC-aligned 5-min refresh clock
 // (nextRefreshAt), so it lands on zero exactly when the stargazer list re-pulls —
@@ -64,11 +83,14 @@ export function WorldMap() {
   const rasterRef = useRef<HTMLCanvasElement | null>(null)
   const labelsRef = useRef<{ name: string; x: number; z: number }[]>([])
   const rWorldRef = useRef(GROUP_RING + 140)
-  const hoverRef = useRef<IslandInstance | null>(null)
+  const hoverRef = useRef<Pick | null>(null)
   const tipRef = useRef<HTMLDivElement>(null)
   const tipWho = useRef<HTMLSpanElement>(null)
   const tipMeta = useRef<HTMLDivElement>(null)
   const countdownRef = useRef<HTMLSpanElement>(null)
+  const started = useWorld((s) => s.started)
+  const homeLabelRef = useRef('')
+  homeLabelRef.current = t('map.homeIsle')
   // Pan/zoom of the map view: zoom 1 = whole archipelago; (cx,cz) is the world
   // point at the centre of the view. Read by the rAF draw loop, so it's a ref.
   const viewRef = useRef({ zoom: 1, cx: 0, cz: 0 })
@@ -90,21 +112,35 @@ export function WorldMap() {
   const dragRef = useRef<{ x: number; y: number; cx: number; cz: number } | null>(null)
   const draggedRef = useRef(false)
 
+  // Before the game has started the map is the start screen: closing it (or
+  // picking the home isle) begins on foot at the usual spawn via the fly-in; a
+  // stargazer island begins the same way, then sets sail there once live.
   const close = () => {
     setMapOpen(false)
-    requestLock()
+    if (useWorld.getState().started) requestLock()
+    else introActions.handleEnter?.()
   }
-  const travel = (isl: IslandInstance) => {
-    goToIsland(isl)
-    close()
+  const travel = (dest: Pick) => {
+    const ws = useWorld.getState()
+    setMapOpen(false)
+    if (!ws.started) {
+      introActions.handleEnter?.(dest === 'home' ? undefined : () => goToIsland(dest))
+      return
+    }
+    requestLock()
+    if (dest === 'home') {
+      returnHome() // always the usual spawn, on foot (never in the boat)
+    } else {
+      goToIsland(dest)
+    }
   }
 
-  // M opens it (in the isles); Esc closes it. Capture phase + stop-propagation so
+  // M opens it (anywhere, once started); Esc closes it. Capture phase + stop-propagation so
   // Esc beats the settings menu's own Esc handler when the map is up.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ws = useWorld.getState()
-      if (e.code === 'KeyM' && !ws.mapOpen && ws.started && !ws.menuOpen && ws.mapId === 'archipelago') {
+      if (e.code === 'KeyM' && !ws.mapOpen && ws.started && !ws.menuOpen) {
         e.preventDefault()
         ws.setMapOpen(true)
       } else if (e.code === 'Escape' && useWorld.getState().mapOpen) {
@@ -173,7 +209,8 @@ export function WorldMap() {
     if (!mapOpen) return
     const rWorld = Math.max(archipelagoExtent() + 40, GROUP_RING + 140)
     rWorldRef.current = rWorld
-    rasterRef.current = buildMap(archHeight, rWorld, 512, archMapColor)
+    // The shared world height field: the real home isle at the centre + every isle.
+    rasterRef.current = buildMap(mapHeight, rWorld, 640, archMapColor)
     labelsRef.current = groupLabels(islands)
 
     const canvas = canvasRef.current
@@ -203,17 +240,21 @@ export function WorldMap() {
       const sx = (cx - rView + rWorld) * pxPerWorld
       const sy = (cz - rView + rWorld) * pxPerWorld
       ctx.drawImage(raster, sx, sy, sw, sw, 0, 0, CANVAS, CANVAS)
-
       // The islands themselves are drawn by the biome-coloured raster — no outline
       // ring around each isle (the dark footprint border read as a hard grey edge and
       // muddied the island colours; removed at the user's request).
 
+      // Ryhox's home isle is painted by the raster; its name sits right on top.
+      const home = toCanvas(0, 0)
+      const hr = Math.max(10, HOME_MAP_RADIUS * scale)
+
       // hover highlight ring
       const hv = hoverRef.current
       if (hv) {
-        const c = toCanvas(hv.cx, hv.cz)
+        const c = hv === 'home' ? home : toCanvas(hv.cx, hv.cz)
+        const rr = hv === 'home' ? hr : Math.max(6, hv.radius * scale)
         ctx.beginPath()
-        ctx.arc(c.x, c.y, Math.max(6, hv.radius * scale) + 5, 0, Math.PI * 2)
+        ctx.arc(c.x, c.y, rr + 5, 0, Math.PI * 2)
         ctx.strokeStyle = '#fffaf0'
         ctx.lineWidth = 2.5
         ctx.stroke()
@@ -232,9 +273,14 @@ export function WorldMap() {
         ctx.fillStyle = '#fffaf0'
         ctx.fillText(lb.name, c.x, c.y)
       }
+      const ly = home.y
+      ctx.strokeStyle = 'rgba(38,30,18,0.85)'
+      ctx.strokeText(homeLabelRef.current, home.x, ly)
+      ctx.fillStyle = '#f5b13f'
+      ctx.fillText(homeLabelRef.current, home.x, ly)
 
-      // your position (only meaningful once you're actually in the isles)
-      if (useWorld.getState().mapId === 'archipelago') {
+      // your position (one world, so always meaningful once you're playing)
+      if (useWorld.getState().started) {
         const p = toCanvas(NAV.px, NAV.pz)
         const ang = Math.atan2(NAV.fz, NAV.fx)
         ctx.save()
@@ -259,7 +305,7 @@ export function WorldMap() {
   }, [mapOpen, islands])
 
   // cursor → nearest island within a small tolerance
-  const pick = (e: ReactMouseEvent): IslandInstance | null => {
+  const pick = (e: ReactMouseEvent): Pick | null => {
     const canvas = canvasRef.current
     if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
@@ -277,6 +323,8 @@ export function WorldMap() {
       }
     }
     const tol = Math.max(4, rView * 0.02)
+    // The home isle wins when the cursor is on it (nothing else lives near it).
+    if (Math.hypot(wx, wz) < HOME_MAP_RADIUS + tol) return 'home'
     return best && bestD < tol ? best : null
   }
 
@@ -311,13 +359,16 @@ export function WorldMap() {
         tip.style.display = 'block'
         tip.style.left = e.clientX + 14 + 'px'
         tip.style.top = e.clientY + 14 + 'px'
-        const who = isl.isMother ? isl.groupName : isl.login
+        const home = isl === 'home'
+        const who = home ? t('map.homeIsle') : isl.isMother ? isl.groupName : isl.login
         if (tipWho.current) {
           tipWho.current.textContent = who
           // Tint the name with its island type's signature land colour.
-          tipWho.current.style.color = '#' + isl.biome.palette.grassHi.toString(16).padStart(6, '0')
+          tipWho.current.style.color = home ? '#f5b13f' : '#' + isl.biome.palette.grassHi.toString(16).padStart(6, '0')
         }
-        if (tipMeta.current) tipMeta.current.textContent = isl.isMother ? t('map.motherIsle') : isl.biome.name
+        if (tipMeta.current) {
+          tipMeta.current.textContent = home ? t('map.homeMeta') : isl.isMother ? t('map.motherIsle') : isl.biome.name
+        }
       } else {
         tip.style.display = 'none'
       }
@@ -388,9 +439,25 @@ export function WorldMap() {
     ? islands.filter((i) => !i.isMother && i.login.toLowerCase().includes(q)).slice(0, MAX_RESULTS)
     : []
 
+  // As the start screen it eases in slowly over the revealed world (backdrop
+  // first, then the panel drifts up); later M-opens use a quick, snappy fade.
+  const intro = !started
   return (
-    <div style={sBackdrop}>
-      <div style={sPanel}>
+    <div
+      style={{
+        ...sBackdrop,
+        animation: intro ? 'mapBackdropIn 1.1s ease-out both' : 'mapBackdropIn 0.18s ease-out both',
+      }}
+    >
+      <style>{MAP_CSS}</style>
+      <div
+        style={{
+          ...sPanel,
+          animation: intro
+            ? 'mapPanelIn 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both'
+            : 'mapPanelIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) both',
+        }}
+      >
         <div style={sHeader}>
           <span style={sTitle}>{t('map.title')}</span>
           <button style={sClose} onClick={close} aria-label={t('map.closeAria')}>
@@ -460,7 +527,10 @@ export function WorldMap() {
           </div>
         </div>
 
-        <div style={sHint}>{IS_TOUCH ? t('map.hintTouch') : t('map.hintDesktop')}</div>
+        <div style={sHint}>
+          {!started && <div style={sStartHint}>{t('map.startHint')}</div>}
+          {IS_TOUCH ? t('map.hintTouch') : t('map.hintDesktop')}
+        </div>
       </div>
 
       <div ref={tipRef} style={sTip}>
@@ -475,6 +545,15 @@ export function WorldMap() {
   )
 }
 
+
+// Opacity + transform only (compositor-friendly), no blur/glow.
+const MAP_CSS = `
+@keyframes mapBackdropIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes mapPanelIn {
+  from { opacity: 0; transform: translateY(18px) scale(0.97) }
+  to   { opacity: 1; transform: none }
+}
+`
 
 const sBackdrop: CSSProperties = {
   position: 'fixed',
@@ -684,6 +763,12 @@ const sHint: CSSProperties = {
   fontSize: 15,
   color: 'rgba(111,88,54,0.7)',
   textAlign: 'center',
+}
+
+const sStartHint: CSSProperties = {
+  fontSize: 18,
+  color: '#5a4528',
+  marginBottom: 2,
 }
 
 const sTip: CSSProperties = {

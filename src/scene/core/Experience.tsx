@@ -33,7 +33,6 @@ import { RowingBoat } from '../boat/RowingBoat'
 import { BoatPrompt } from '../boat/BoatPrompt'
 import { registerOccluder, unregisterOccluder } from './occluders'
 import { ArchipelagoLand } from '../archipelago/ArchipelagoLand'
-import { HorizonGate } from '../archipelago/HorizonGate'
 
 // Advances time-of-day. Kept out of React render — just mutates the store.
 function TimeDriver() {
@@ -282,7 +281,8 @@ function CinematicCamera() {
 }
 
 export function Experience() {
-  const mapId = useWorld((s) => s.mapId)
+  // ONE world: the home isle at the origin and the stargazer isles out around it
+  // are all mounted together, so you can sail from one to the other.
   return (
     <>
       <RevealPatcher />
@@ -291,34 +291,25 @@ export function Experience() {
       <CinematicCamera />
       <Player />
       <DayNight />
-      {/* Sun shafts + drifting fireflies belong to the home island only — they'd
-          otherwise hang over the archipelago's spawn (its origin sits where the
-          home isle's effects live). */}
-      {mapId === 'home' && <LightShafts />}
-      {mapId === 'archipelago' && <ArchLightShafts />}
-      {mapId === 'home' ? (
-        <>
-          <Island />
-          <Campfire />
-          <HilltopBenches />
-          <GlowProps />
-          <HorizonGate />
-          <Suspense fallback={null}>
-            <Summit />
-          </Suspense>
-          <Suspense fallback={null}>
-            <MessageBoard />
-          </Suspense>
-          <BoardCamera />
-          <Suspense fallback={null}>
-            <Occluders>
-              <NatureField />
-            </Occluders>
-          </Suspense>
-        </>
-      ) : (
-        <ArchipelagoLand />
-      )}
+      <LightShafts />
+      <ArchLightShafts />
+      <Island />
+      <Campfire />
+      <HilltopBenches />
+      <GlowProps />
+      <Suspense fallback={null}>
+        <Summit />
+      </Suspense>
+      <Suspense fallback={null}>
+        <MessageBoard />
+      </Suspense>
+      <BoardCamera />
+      <Suspense fallback={null}>
+        <Occluders>
+          <NatureField />
+        </Occluders>
+      </Suspense>
+      <ArchipelagoLand />
       <Seabed />
       <RippleSim />
       <Water />
@@ -327,7 +318,7 @@ export function Experience() {
       <OceanHorizon />
       <RowingBoat />
       <BoatPrompt />
-      {mapId === 'home' && <Particles />}
+      <Particles />
       <Postfx />
     </>
   )

@@ -173,6 +173,9 @@ export const ko: Record<StringKey, string> = {
   'map.motherIsle': '모섬',
   'map.teleport': '텔레포트',
   'map.to': '→',
+  'map.homeIsle': "Ryhox's Portfolio",
+  'map.homeMeta': '홈 섬',
+  'map.startHint': '시작할 곳을 골라요: 제 홈 섬은 한가운데에 있어요',
 
   'transition.settingSail': '출항 중…',
   'transition.comingAshore': '상륙 중…',

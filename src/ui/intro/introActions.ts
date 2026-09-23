@@ -1,7 +1,6 @@
 export const introActions = {
-  handleEnter:       null as (() => void) | null,
-  showLabel:         null as (() => void) | null,
-  hideLabel:         null as (() => void) | null,
+  // Starts the game (fly-in to the home spawn); `after` runs once it's live.
+  handleEnter:       null as ((after?: () => void) => void) | null,
   collapseProgress:  null as ((onDone: () => void) => void) | null,
   startReveal:       null as (() => void) | null,
   expandReveal:      null as ((onComplete?: () => void) => void) | null,

@@ -10,7 +10,6 @@ import { Minimap } from './ui/hud/Minimap'
 import { WorldMap } from './ui/map/WorldMap'
 import { IntroController } from './ui/intro/IntroController'
 import { IntroGrid } from './ui/intro/IntroGrid'
-import { IntroLabel } from './ui/intro/IntroLabel'
 import { LoadingScreen } from './ui/intro/LoadingScreen'
 import { WaterOverlay } from './ui/hud/WaterOverlay'
 import { MapTransition } from './ui/map/MapTransition'
@@ -44,7 +43,6 @@ export default function App() {
         </Suspense>
       </Canvas>
       <LoadingScreen />
-      <IntroLabel />
       <IntroController />
       <EscMenu />
       <Brand />

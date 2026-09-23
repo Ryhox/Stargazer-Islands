@@ -27,7 +27,7 @@ export const PROJECTS: Project[] = [
     meta: 'React Three Fiber · three.js',
     descKey: 'project.portfolio.desc',
     image: '/projects/portfolio.png',
-    source: 'https://github.com/Ryhox/portfolio',
+    source: 'https://github.com/Ryhox/Stargazer-Islands',
   },
   {
     name: 'Pokyh',

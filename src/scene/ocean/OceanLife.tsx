@@ -213,19 +213,15 @@ function FloatingDebris() {
 }
 
 export function OceanLife() {
-  const mapId = useWorld((s) => s.mapId)
-  // The jumping fish and the floating driftwood belong to the home isle only —
-  // the Stargazers Isles stay clean (no leaping fish, no trash on the water).
-  const home = mapId === 'home'
+  // The jumping fish and the floating driftwood are placed around the home isle;
+  // the stargazer isles further out stay clean.
   return (
     <>
       <Birds />
-      {home && (
-        <Suspense fallback={null}>
-          <JumpingFish />
-        </Suspense>
-      )}
-      {home && <FloatingDebris />}
+      <Suspense fallback={null}>
+        <JumpingFish />
+      </Suspense>
+      <FloatingDebris />
     </>
   )
 }

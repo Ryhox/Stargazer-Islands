@@ -4,16 +4,16 @@
  * Step 0 (loading complete, +200ms):
  *   1. worldVisible=true — water is solid at once; sky/horizon fade in fast (~1.2s)
  *   2. Progress overlay fades out (0.45s)
- *   3. +150ms: label rises in, ready=true, click-anywhere enabled
+ *   3. +150ms: the world map opens as the start screen — pick where to begin
  *
- * handleEnter (click anywhere / Enter / Space):
- *   1. Hide label + reset cursor
- *   2. Expand reveal: white shockwave (0→3, 0.35s) then ring sweeps to 50 (3.5s)
- *   3. [reveal done +400ms] → camera flies into character (2s power2.out)
- *   4. Audio fades in simultaneously
- *   5. At camera-arrival+0.3s: pointer lock + game active
+ * handleEnter (map: home isle / close; or a stargazer island via `after`):
+ *   1. Expand reveal: white shockwave (0→3, 0.35s) then ring sweeps to 50 (3.5s)
+ *   2. Camera flies into character (3s power2.out) — always the home spawn, on foot
+ *   3. Audio fades in simultaneously
+ *   4. At camera arrival: pointer lock + game active, then `after` runs (e.g. set
+ *      sail to the stargazer island that was picked on the map)
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { startAmbience, setVol as setAudioVol } from '../../audio/useAmbience'
 import { requestLock } from '../../scene/core/pointerLock'
@@ -22,15 +22,13 @@ import { introActions } from './introActions'
 import { useLoadStatus } from './loadStatus'
 
 export function IntroController() {
-  const started   = useWorld((s) => s.started)
   // Overall load progress drives the ring fill; warmReady (GPU warm-up done) is
   // what actually unlocks the reveal — so the world is never shown until every
   // shader/texture/mesh is on the GPU and the first look-around is hitch-free.
   const progress  = useLoadStatus((s) => s.progress)
   const warmReady = useLoadStatus((s) => s.warmReady)
-  const [ready,         setReady]         = useState(false)
-  const [transitioning, setTransitioning] = useState(false)
   const step0Fired = useRef(false)
+  const entering   = useRef(false)
 
   useEffect(() => {
     useWorld.getState().setIntroProgress(progress)
@@ -44,15 +42,15 @@ export function IntroController() {
       // Start world fade as the iris begins closing — scene fades in while overlay shrinks
       useWorld.getState().setWorldVisible(true)
 
-      // Iris-close: overlay fades out, then the label rises in right behind it
+      // Iris-close: overlay fades out, then the world map opens right behind it as
+      // the start screen (stargazers first; the home isle sits in the middle).
       introActions.collapseProgress?.(() => {
-        const labelId = setTimeout(() => {
-          introActions.showLabel?.()
-          setReady(true)
+        const mapId = setTimeout(() => {
           introActions.ready = true
+          useWorld.getState().setMapOpen(true)
         }, 150)
 
-        return () => clearTimeout(labelId)
+        return () => clearTimeout(mapId)
       })
     }, 200)
 
@@ -63,22 +61,11 @@ export function IntroController() {
     }
   }, [warmReady])
 
-  // Cursor: pointer while ready and waiting for click
-  useEffect(() => {
-    if (ready && !transitioning) {
-      document.body.style.cursor = 'pointer'
-    } else {
-      document.body.style.cursor = 'default'
-    }
-    return () => { document.body.style.cursor = 'default' }
-  }, [ready, transitioning])
-
-  const handleEnter = useCallback(() => {
-    if (!ready || transitioning) return
-    setTransitioning(true)
+  const handleEnter = useCallback((after?: () => void) => {
+    if (!introActions.ready || entering.current) return
+    entering.current = true
 
     document.body.style.cursor = 'default'
-    introActions.hideLabel?.()
     introActions.onHoverLeave?.()
 
     void startAmbience()
@@ -106,31 +93,14 @@ export function IntroController() {
       requestLock()
       useWorld.getState().setPaused(false)
       useWorld.getState().setStarted(true)
+      after?.()
     }, [], 3.0)
-  }, [ready, transitioning])
+  }, [])
 
   useEffect(() => {
     introActions.handleEnter = handleEnter
     return () => { introActions.handleEnter = null }
   }, [handleEnter])
 
-  useEffect(() => {
-    if (!ready || transitioning) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'Enter' || e.code === 'Space') handleEnter()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [ready, transitioning, handleEnter])
-
-  // Click anywhere on screen to start (not just the label or hover zone)
-  useEffect(() => {
-    if (!ready || transitioning) return
-    const onClick = () => handleEnter()
-    window.addEventListener('click', onClick)
-    return () => window.removeEventListener('click', onClick)
-  }, [ready, transitioning, handleEnter])
-
-  if (started) return null
   return null
 }

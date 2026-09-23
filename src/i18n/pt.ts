@@ -173,6 +173,9 @@ export const pt: Record<StringKey, string> = {
   'map.motherIsle': 'Ilha-Mãe',
   'map.teleport': 'Teletransporte',
   'map.to': 'para',
+  'map.homeIsle': "Ryhox's Portfolio",
+  'map.homeMeta': 'Ilha natal',
+  'map.startHint': 'Escolhe onde começar: a minha ilha natal está no centro',
 
   'transition.settingSail': 'A zarpar…',
   'transition.comingAshore': 'A desembarcar…',

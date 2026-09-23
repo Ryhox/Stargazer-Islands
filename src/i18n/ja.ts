@@ -173,6 +173,9 @@ export const ja: Record<StringKey, string> = {
   'map.motherIsle': '母島',
   'map.teleport': 'テレポート',
   'map.to': '→',
+  'map.homeIsle': "Ryhox's Portfolio",
+  'map.homeMeta': 'ホーム島',
+  'map.startHint': 'スタート地点を選ぼう：ホーム島は真ん中にあるよ',
 
   'transition.settingSail': '出航中…',
   'transition.comingAshore': '上陸中…',

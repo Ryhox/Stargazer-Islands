@@ -256,8 +256,28 @@ export function addSway(geo: THREE.BufferGeometry) {
   geo.setAttribute('aSway', new THREE.BufferAttribute(sway, 1))
 }
 
+// MTLLoader creates a fresh TextureLoader request per material slot, so a kit
+// texture shared by 15 materials (map_Kd + map_d) was downloaded, decoded and
+// uploaded to the GPU ~30 times — 381 texture loads for 23 files. Route every
+// texture through one shared cache so each file loads (and uploads) exactly once.
+const texLoader = new THREE.TextureLoader()
+const texCache = new Map<string, THREE.Texture>()
+const sharedTextures = {
+  load(url: string, onLoad?: (t: THREE.Texture) => void, _p?: unknown, onError?: (e: unknown) => void) {
+    let tex = texCache.get(url)
+    if (!tex) {
+      tex = texLoader.load(url, undefined, undefined, onError)
+      texCache.set(url, tex)
+    }
+    onLoad?.(tex)
+    return tex
+  },
+}
+const natureManager = new THREE.LoadingManager()
+natureManager.addHandler(/\.(png|jpe?g|webp)$/i, sharedTextures as unknown as THREE.Loader)
+
 async function loadOne(name: string): Promise<LoadedModel> {
-  const mtlLoader = new MTLLoader()
+  const mtlLoader = new MTLLoader(natureManager)
   mtlLoader.setPath(BASE)
   mtlLoader.setResourcePath(BASE)
   const materials = await mtlLoader.loadAsync(`${name}.mtl`)

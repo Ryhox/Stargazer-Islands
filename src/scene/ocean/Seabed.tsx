@@ -3,7 +3,6 @@ import * as THREE from 'three'
 import { smoothstep } from '../core/palette'
 import { getHeight } from '../terrain/terrain'
 import { useNature } from '../terrain/loadNature'
-import { useWorld } from '../../state/useWorld'
 import { n } from '../core/config'
 import { SEABED_HALF, mulberry32, seabedHeight } from './seabedField'
 import { archipelagoExtent, useArchipelago } from '../archipelago/archipelago'
@@ -185,45 +184,39 @@ function Seagrass({ rMin = 70, rMax = 220, count = 620 }: { rMin?: number; rMax?
 }
 
 export function Seabed() {
-  const mapId = useWorld((s) => s.mapId)
   // Re-read when the archipelago loads so the floor grows to cover its islands.
   const islands = useArchipelago((s) => s.islands)
-  const isArch = mapId === 'archipelago'
-  // Stretch the floor over the whole archipelago (its islands fan out far past
+  // One floor under the whole shared world (the stargazer isles fan out far past
   // the home seabed). Segments scale with size but are capped for performance.
-  const half = isArch ? Math.max(SEABED_HALF, archipelagoExtent() + 140) : SEABED_HALF
-  const seg = isArch ? Math.min(300, Math.max(180, Math.round(half / 2.6))) : 220
+  const half = Math.max(SEABED_HALF, archipelagoExtent() + 140)
+  const seg = Math.min(300, Math.max(220, Math.round(half / 2.6)))
   void islands // dependency only — drives the half recompute on load
 
-  // Spread the reef life across whichever floor we're on: a tight ring around the
-  // home island, or the whole archipelago (counts scale with the bigger area).
-  const flora = isArch
-    ? { cMin: 50, cMax: half - 30, corals: 90, grass: 2400, schools: 18, perSchool: 6, mantas: 10 }
-    : { cMin: 0, cMax: 0, corals: 22, grass: 620 } // 0 → component defaults (home)
+  // Reef life: the home isle's tight ring (component defaults) plus a wider spread
+  // out across the stargazer waters beyond it.
+  const out = { cMin: 170, cMax: half - 30, corals: 90, grass: 2400, schools: 18, perSchool: 6, mantas: 10 }
+  const hasOut = out.cMax > out.cMin + 40
 
   return (
     <>
       <SeabedFloor half={half} seg={seg} />
-      {isArch ? (
+      <Corals />
+      <Suspense fallback={null}>
+        <UnderwaterFish />
+        <Seagrass />
+      </Suspense>
+      {hasOut && (
         <>
-          <Corals rMin={flora.cMin} rMax={flora.cMax} count={flora.corals} />
+          <Corals rMin={out.cMin} rMax={out.cMax} count={out.corals} />
           <Suspense fallback={null}>
             <UnderwaterFish
-              rMin={flora.cMin}
-              rMax={flora.cMax}
-              schools={flora.schools}
-              perSchool={flora.perSchool}
-              mantas={flora.mantas}
+              rMin={out.cMin}
+              rMax={out.cMax}
+              schools={out.schools}
+              perSchool={out.perSchool}
+              mantas={out.mantas}
             />
-            <Seagrass rMin={flora.cMin} rMax={flora.cMax} count={flora.grass} />
-          </Suspense>
-        </>
-      ) : (
-        <>
-          <Corals />
-          <Suspense fallback={null}>
-            <UnderwaterFish />
-            <Seagrass />
+            <Seagrass rMin={out.cMin} rMax={out.cMax} count={out.grass} />
           </Suspense>
         </>
       )}

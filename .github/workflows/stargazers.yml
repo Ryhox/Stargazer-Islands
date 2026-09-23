@@ -1,0 +1,73 @@
+# Publishes the ordered stargazer list (oldest star first) as a static JSON file
+# on the `stargazers-data` branch. GitHub's /stargazers endpoint now requires
+# authentication, so visitors' browsers can't call it directly — they read
+# https://raw.githubusercontent.com/<repo>/stargazers-data/stargazers.json instead.
+#
+# Runs the moment someone stars (watch: started), every 5 minutes as a catch-all
+# (unstars, missed events), and on demand from the Actions tab.
+name: Publish stargazers
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/stargazers.yml']
+  watch:
+    types: [started]
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stargazers
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch stargazers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          page=1
+          echo '[]' > all.json
+          while :; do
+            curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github.star+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${{ github.repository }}/stargazers?per_page=100&page=$page" > page.json
+            n=$(jq 'length' page.json)
+            jq -s '.[0] + [.[1][] | .user.login]' all.json page.json > next.json
+            mv next.json all.json
+            [ "$n" -lt 100 ] && break
+            page=$((page + 1))
+          done
+          jq -c '{ logins: . }' all.json > stargazers.json
+          echo "stargazers: $(jq 'length' all.json)"
+
+      - name: Commit to stargazers-data branch (only when changed)
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          url="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git clone --depth 1 --branch stargazers-data "$url" data 2>/dev/null; then
+            cd data
+          else
+            mkdir data && cd data
+            git init -q -b stargazers-data
+            git remote add origin "$url"
+          fi
+          cp ../stargazers.json stargazers.json
+          git add stargazers.json
+          if git diff --cached --quiet; then
+            echo "no change"
+          else
+            git commit -q -m "Update stargazers"
+            git push -q origin stargazers-data
+          fi

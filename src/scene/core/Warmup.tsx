@@ -6,6 +6,8 @@ import { useLoadStatus } from '../../ui/intro/loadStatus'
 import { REVEAL_DIST } from '../terrain/revealUniforms'
 import { SPAWN_X, SPAWN_Z } from './spawnConstants'
 import { getHeight } from '../terrain/terrain'
+import { LITE } from './config'
+import { useWorld } from '../../state/useWorld'
 
 // ---------------------------------------------------------------------------
 // GPU WARM-UP — the cure for "the first time I look around it freezes".
@@ -37,6 +39,7 @@ type Warm = {
   frames: number
   lastCount: number
   stableFrames: number
+  changedAt: number
   warmStart: number
   shaderFrames: number
   compiling: boolean
@@ -56,6 +59,7 @@ const WARM_TIMEOUT_MS = 12000
 // it does, the mesh count jumps into the hundreds and then holds steady.
 const MIN_MESHES = 24            // more than the bare intro → real content is in
 const STABLE_FRAMES = 45         // mesh count unchanged this long → loading settled
+const STABLE_MS = 1200           // …and for this long (frames are cheap while the scene is hidden)
 const READY_TIMEOUT_FRAMES = 3600 // ~60s absolute safety so we never hang forever
 const PREP_PASSES = 3            // full-scene warm renders (1 warms; the rest confirm)
 const EYE = 1.7
@@ -182,6 +186,32 @@ function fullWarmRender(gl: THREE.WebGLRenderer, scene: THREE.Scene, w: Warm) {
   }
 }
 
+// While loading, the camera looks at an empty layer so nothing is drawn — and so
+// no shader compiles synchronously on a first draw (~120 programs at 100ms+ each
+// on ANGLE/D3D was the bulk of the old load time). They're compiled together by
+// compileAsync in the shaders phase instead; the opaque loading card covers it all.
+const EMPTY_LAYER = 31
+let _hidden: { cam: THREE.Camera; mask: number } | null = null
+function hideScene(cam: THREE.Camera) {
+  if (_hidden) return
+  _hidden = { cam, mask: cam.layers.mask }
+  cam.layers.set(EMPTY_LAYER)
+}
+function showScene() {
+  if (!_hidden) return
+  _hidden.cam.layers.mask = _hidden.mask
+  _hidden = null
+
+}
+
+// Shader compile never reported ready (driver quirk) — move on regardless; any
+// straggler compiles on first draw.
+function skipShaderWait(w: Warm, scene: THREE.Scene) {
+  showScene()
+  w.texList = gatherTextures(scene)
+  w.phase = 'textures'
+}
+
 function disposeRig(w: Warm) {
   w.rt?.dispose()
   w.rt = null
@@ -202,6 +232,7 @@ export function Warmup() {
     frames: 0,
     lastCount: -1,
     stableFrames: 0,
+    changedAt: 0,
     warmStart: 0,
     shaderFrames: 0,
     compiling: false,
@@ -223,18 +254,26 @@ export function Warmup() {
     if (s.phase !== 'assets' && s.phase !== 'done' && performance.now() - s.warmStart > WARM_TIMEOUT_MS) {
       disposeRig(s)
       dlog('TIMEOUT in', s.phase, '— forcing ready')
+      showScene()
       s.phase = 'done'
       useLoadStatus.getState().set({ phase: 'ready', progress: 1, warmReady: true })
       return
     }
 
     // 1) ASSETS — wait until the scene graph is BUILT (real meshes, count steady).
+    //    The scene is kept out of the render loop meanwhile (the opaque loading
+    //    card hides it anyway): otherwise every mesh that mounts compiles its
+    //    shader SYNCHRONOUSLY on its first draw — ~110 programs at 100ms+ each on
+    //    ANGLE/D3D, which was the bulk of the load time. They're compiled in
+    //    parallel by compileAsync in the next phase instead.
     if (s.phase === 'assets') {
+      hideScene(camera)
       s.frames++
       const count = countMeshes(scene)
       if (count !== s.lastCount) {
         s.lastCount = count
         s.stableFrames = 0
+        s.changedAt = performance.now()
       } else {
         s.stableFrames++
       }
@@ -249,7 +288,8 @@ export function Warmup() {
       push(cap, 0.7 * Math.max(dreiP, crawl))
       if (s.frames % 60 === 0) dlog('waiting…', count, 'meshes, stable', s.stableFrames)
 
-      if ((count >= MIN_MESHES && s.stableFrames >= STABLE_FRAMES) || s.frames > READY_TIMEOUT_FRAMES) {
+      const settled = s.stableFrames >= STABLE_FRAMES && performance.now() - s.changedAt >= STABLE_MS && !drei.active
+      if ((count >= MIN_MESHES && settled) || s.frames > READY_TIMEOUT_FRAMES) {
         s.warmStart = performance.now()
         dlog('scene ready:', count, 'meshes after', s.frames, 'frames → warming')
         s.phase = 'shaders'
@@ -265,19 +305,39 @@ export function Warmup() {
       if (!s.compiling) {
         s.compiling = true
         const next = () => {
+          if (s.phase !== 'shaders') return
+          showScene()
           s.texList = gatherTextures(scene)
           dlog('shaders compiled,', s.texList.length, 'textures to upload')
           s.phase = 'textures'
         }
         const r = gl as unknown as { compileAsync?: (sc: THREE.Object3D, c: THREE.Camera) => Promise<unknown> }
-        if (r.compileAsync) r.compileAsync(scene, camera).then(next, next)
-        else {
-          gl.compile(scene, camera)
-          next()
+        // compile() gathers lights through the camera's layers, so un-hide just for
+        // the (synchronous) program kick-off, then hide again until they're ready.
+        // With post-processing on, frames render into the composer's render target,
+        // and three keys programs on that (no tone mapping, linear output) — so
+        // compile against a render target too, or every material compiles a SECOND
+        // time, synchronously, on its first real frame.
+        const ws = useWorld.getState()
+        const composer = !LITE && ws.quality !== 'Low'
+        const prevRT = gl.getRenderTarget()
+        const tmpRT = composer ? new THREE.WebGLRenderTarget(1, 1) : null
+        showScene()
+        try {
+          if (tmpRT) gl.setRenderTarget(tmpRT)
+          if (r.compileAsync) {
+            r.compileAsync(scene, camera).then(next, next)
+          } else {
+            gl.compile(scene, camera)
+            queueMicrotask(next)
+          }
+        } finally {
+          gl.setRenderTarget(prevRT)
+          hideScene(camera)
+          tmpRT?.dispose()
         }
-      } else if (s.shaderFrames > 300) {
-        s.texList = gatherTextures(scene)
-        s.phase = 'textures'
+      } else if (s.shaderFrames > 600) {
+        skipShaderWait(s, scene)
       }
       return
     }

@@ -196,6 +196,9 @@ export const en = {
   'map.motherIsle': 'Mother Isle',
   'map.teleport': 'Teleport',
   'map.to': 'To',
+  'map.homeIsle': "Ryhox's Portfolio",
+  'map.homeMeta': 'Home isle',
+  'map.startHint': 'Pick where to begin: my home isle is in the middle',
 
   // ── Map fade transition captions ──────────────────────────────────────────
   'transition.settingSail': 'Setting sail…',

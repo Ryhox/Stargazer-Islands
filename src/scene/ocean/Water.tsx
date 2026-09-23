@@ -15,16 +15,33 @@ export function Water() {
   const meshRef  = useRef<THREE.Mesh>(null)
   const foamTimer = useRef(0)
   // Large enough that its edge sits far beyond the fog distance, so the sea
-  // reads as endless. Wave detail stays dense near the island where it matters.
+  // reads as endless. The mesh FOLLOWS the camera and its vertices are packed
+  // densely around the centre (~1m apart, ~17m at the far fogged rim): with an
+  // even grid (9m cells) the ~20m swells were smoothed away on screen while the
+  // boat/swimmer ride the exact wave height — so they dipped under the drawn sea.
   const geometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(2600, 2600, 280, 280)
+    const HALF = 1300
+    const g = new THREE.PlaneGeometry(2, 2, 280, 280)
     g.rotateX(-Math.PI / 2)
+    const warp = (u: number) => HALF * u * (0.12 + 0.88 * Math.abs(u))
+    const pos = g.attributes.position as THREE.BufferAttribute
+    for (let i = 0; i < pos.count; i++) {
+      pos.setX(i, warp(pos.getX(i)))
+      pos.setZ(i, warp(pos.getZ(i)))
+    }
+    g.computeBoundingSphere()
     return g
   }, [])
 
   useFrame((state, delta) => {
     const { worldVisible, started } = useWorld.getState()
-    if (meshRef.current) meshRef.current.visible = worldVisible
+    const m = meshRef.current
+    if (m) {
+      m.visible = worldVisible
+      // Follow the camera (snapped to a small step so the dense core doesn't swim).
+      m.position.x = Math.round(state.camera.position.x * 2) / 2
+      m.position.z = Math.round(state.camera.position.z * 2) / 2
+    }
     if (!worldVisible) return
 
     const s = getSky(useWorld.getState().t)
@@ -70,5 +87,5 @@ export function Water() {
     }
   })
 
-  return <mesh ref={meshRef} geometry={geometry} material={material} position={[0, WATER_LEVEL - 0.03, 0]} renderOrder={2} />
+  return <mesh ref={meshRef} geometry={geometry} material={material} position={[0, WATER_LEVEL - 0.03, 0]} renderOrder={2} frustumCulled={false} />
 }

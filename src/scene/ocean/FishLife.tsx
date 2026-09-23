@@ -27,6 +27,42 @@ const TAU = Math.PI * 2
 // time, so there's never a pop when you approach) but skip the costly skeletal
 // AnimationMixer update until it's close enough to actually be seen.
 const FISH_ANIM_DIST2 = 80 * 80
+// Draw culling for the same reason: a fish past that range (fog) or outside the
+// camera's view is simply not drawn. The skinned clones can't use three's own
+// frustum culling (their bind-pose bounds lie), so each is tested here against a
+// generous sphere. Positions keep updating, so there's never a pop.
+const _frustum = new THREE.Frustum()
+const _pv = new THREE.Matrix4()
+const _sph = new THREE.Sphere()
+function updateFrustum(camera: THREE.Camera) {
+  camera.updateMatrixWorld()
+  _pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+  _frustum.setFromProjectionMatrix(_pv)
+}
+// Hidden fish are DETACHED from the scene graph, not just made invisible: three
+// recomputes every descendant's matrices whenever an ancestor updates (static
+// groups do, every frame), so ~7k fish bones were being recalculated each frame
+// even while culled. Detached, they cost nothing; they're re-attached (at their
+// current pose) the moment they come into view.
+const _home = new WeakMap<THREE.Object3D, THREE.Object3D>()
+function setLive(g: THREE.Object3D, live: boolean) {
+  if (live) {
+    if (!g.parent) {
+      const p = _home.get(g)
+      if (p) p.add(g)
+    }
+  } else if (g.parent) {
+    _home.set(g, g.parent)
+    g.parent.remove(g)
+  }
+}
+
+function seen(x: number, y: number, z: number, r: number, d2: number, maxD2: number) {
+  if (d2 > maxD2) return false
+  _sph.center.set(x, y, z)
+  _sph.radius = r
+  return _frustum.intersectsSphere(_sph)
+}
 const GOLD = '/models/gold_fish_model.glb'
 const MANTA = '/models/cartoon_manta_ray_animated.glb'
 const TROUT = '/models/trout_fish_animated.glb'
@@ -176,6 +212,7 @@ function GoldSchools({
     const dt = Math.min(dtRaw, 0.05)
     const cx = state.camera.position.x
     const cz = state.camera.position.z
+    updateFrustum(state.camera)
     fish.forEach((f, i) => {
       const g = refs.current[i]
       if (!g) return
@@ -184,9 +221,11 @@ function GoldSchools({
       const z = f.s.cz + Math.sin(a) * f.rr
       const y = f.s.cy + f.yoff + Math.sin(t * 1.4 + f.phase) * 0.3
       g.position.set(x, y, z)
-      // only animate the skeleton when close enough to be seen (see FISH_ANIM_DIST2)
+      // only draw + animate when it can actually be seen (see FISH_ANIM_DIST2)
       const ddx = x - cx, ddz = z - cz
-      if (ddx * ddx + ddz * ddz < FISH_ANIM_DIST2) instances[i].mixer.update(dt)
+      const vis = seen(x, y, z, 1.5, ddx * ddx + ddz * ddz, FISH_ANIM_DIST2)
+      setLive(g, vis)
+      if (vis) instances[i].mixer.update(dt)
       // face the way it's actually moving (tangent to the circle, sign-aware)
       g.rotation.y = Math.atan2(-Math.sin(a) * f.s.spd, Math.cos(a) * f.s.spd)
       g.rotation.z = Math.sin(t * 1.4 + f.bob) * 0.12 // gentle bank
@@ -248,6 +287,7 @@ function Mantas({ rMin, rMax, count }: { rMin: number; rMax: number; count: numb
     const dt = Math.min(dtRaw, 0.05)
     const cx = state.camera.position.x
     const cz = state.camera.position.z
+    updateFrustum(state.camera)
     rays.forEach((r, i) => {
       const g = refs.current[i]
       if (!g) return
@@ -256,9 +296,11 @@ function Mantas({ rMin, rMax, count }: { rMin: number; rMax: number; count: numb
       const z = r.cz + Math.sin(a) * r.r
       const y = r.cy + Math.sin(t * 0.35 + r.bob) * 1.1 // slow rise and fall
       g.position.set(x, y, z)
-      // skeleton only when close enough to be seen (see FISH_ANIM_DIST2)
+      // skeleton + draw only when it can actually be seen (a manta is big: wider sphere)
       const ddx = x - cx, ddz = z - cz
-      if (ddx * ddx + ddz * ddz < FISH_ANIM_DIST2) instances[i].mixer.update(dt)
+      const vis = seen(x, y, z, 5, ddx * ddx + ddz * ddz, FISH_ANIM_DIST2 * 1.4)
+      setLive(g, vis)
+      if (vis) instances[i].mixer.update(dt)
       g.rotation.y = Math.atan2(-Math.sin(a) * r.spd, Math.cos(a) * r.spd)
       g.rotation.z = Math.sin(t * 0.4 + r.bob) * 0.18 // lazy roll into the turn
       if (import.meta.env.DEV && i === 0) (window as any).__mantaLive = [x, y, z, g.rotation.y]

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type { Object3D } from 'three'
-import { IS_TOUCH } from '../input/device'
 
 // Time of day is normalized 0..1:
 //   0.00 = midnight   0.25 = sunrise   0.50 = noon   0.75 = sunset
@@ -27,6 +26,16 @@ function initialLang(): Lang {
   return 'en' // English by default (not the device language); settings can change it
 }
 
+// Graphics quality: Medium by default on every device (the full High stack is
+// heavy for laptop / integrated GPUs). A pick in settings is remembered.
+function initialQuality(): Quality {
+  try {
+    const saved = window.localStorage.getItem('quality') as Quality | null
+    if (saved && QUALITY_ORDER.includes(saved)) return saved
+  } catch { /* localStorage may be blocked */ }
+  return 'Medium'
+}
+
 // The little to-do list shown bottom-left. Each flag flips true the first time the
 // player does the thing, and the entry gets crossed off. `projects` has no trigger
 // yet (it's "coming soon"); `enjoy` is never crossed off — it's always the mood.
@@ -44,6 +53,7 @@ export type WorldState = {
   quality: Quality
   language: Lang
   motionBlur: boolean       // temporal motion-blur post effect (Medium/High quality)
+  showFps: boolean          // debug overlay: FPS / frame time / draw calls (Settings → Show FPS)
   motionBlurAmount: number  // 0..1 strength of the motion-blur trail
   invertX: boolean
   invertY: boolean
@@ -76,8 +86,10 @@ export type WorldState = {
   setSunMesh: (m: Object3D | null) => void
   setMenuOpen: (open: boolean) => void
   cycleQuality: () => void
+  setQuality: (q: Quality) => void
   setLanguage: (l: Lang) => void
   setMotionBlur: (v: boolean) => void
+  toggleShowFps: () => void
   toggleMotionBlur: () => void
   setMotionBlurAmount: (v: number) => void
   toggleInvert: (axis: 'x' | 'y') => void
@@ -116,12 +128,12 @@ export const useWorld = create<WorldState>((set) => ({
   started: false,
   muted: false,
   menuOpen: false,
-  // Touch devices (phones/tablets) auto-start on Medium so the Medium shader/post
-  // variants are the ones Warmup precompiles during the loading screen. Desktop
-  // keeps High. The user can still change it in settings.
-  quality: IS_TOUCH ? 'Medium' : 'High',
+  // Medium unless the player picked something (Warmup precompiles for whichever
+  // quality is active during the loading screen).
+  quality: typeof window === 'undefined' ? 'Medium' : initialQuality(),
   language: initialLang(),
   motionBlur: true,
+  showFps: (() => { try { return window.localStorage.getItem('showFps') === '1' } catch { return false } })(),
   motionBlurAmount: 0.25,
   invertX: false,
   invertY: false,
@@ -157,12 +169,22 @@ export const useWorld = create<WorldState>((set) => ({
     set((s) => ({
       quality: QUALITY_ORDER[(QUALITY_ORDER.indexOf(s.quality) + 1) % QUALITY_ORDER.length],
     })),
+  setQuality: (quality) =>
+    set(() => {
+      try { window.localStorage.setItem('quality', quality) } catch { /* ignore */ }
+      return { quality }
+    }),
   setLanguage: (language) =>
     set(() => {
       try { window.localStorage.setItem('lang', language) } catch { /* ignore */ }
       return { language }
     }),
   setMotionBlur: (motionBlur) => set({ motionBlur }),
+  toggleShowFps: () =>
+    set((s) => {
+      try { window.localStorage.setItem('showFps', s.showFps ? '0' : '1') } catch { /* ignore */ }
+      return { showFps: !s.showFps }
+    }),
   toggleMotionBlur: () => set((s) => ({ motionBlur: !s.motionBlur })),
   setMotionBlurAmount: (motionBlurAmount) => set({ motionBlurAmount }),
   toggleInvert: (axis) =>

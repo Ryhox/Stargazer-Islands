@@ -332,8 +332,8 @@ export function getPlacements(): PlacementEntry[] {
 // Everything else (grass, bushes, flowers, pebbles…) stays walk-through. Radii
 // are deliberately a touch generous so you stop before clipping into a trunk.
 // The path stones are NOT walls — see buildPathSteps: you step up and over them.
-const TREE_MODELS = new Set([...COMMON, ...PINE, ...TWISTED, ...DEAD])
-const ROCK_MODELS = new Set(ROCK)
+export const TREE_MODELS = new Set([...COMMON, ...PINE, ...TWISTED, ...DEAD])
+export const ROCK_MODELS = new Set(ROCK)
 const PATHSTONE_MODELS = new Set(PATHSTONE)
 
 export type Collider = { x: number; z: number; r: number }

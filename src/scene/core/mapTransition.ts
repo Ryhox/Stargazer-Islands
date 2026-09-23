@@ -149,6 +149,15 @@ export function goToIsland(isl: IslandInstance) {
   })
 }
 
+// Start-screen pick of a stargazer isle: no fade-out, no fly-in — you simply
+// begin there, seated in the boat. The caller holds the veil over the switch.
+export function arriveAtIsland(isl: IslandInstance) {
+  useArchipelago.getState().ensureLoaded()
+  clearBanner()
+  placeAtIsland(isl)
+  useWorld.getState().setMapId('archipelago')
+}
+
 // Dev convenience — drive the crossing from the screenshot harness.
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   ;(window as unknown as { __arch: unknown }).__arch = {

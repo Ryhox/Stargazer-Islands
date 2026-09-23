@@ -23,6 +23,7 @@ import { HoldReturnIndicator } from './ui/hud/HoldReturnIndicator'
 import { QuestList } from './ui/hud/QuestList'
 import { TouchControls } from './ui/touch/TouchControls'
 import { TouchDisclaimer } from './ui/banners/TouchDisclaimer'
+import { FpsOverlay } from './ui/hud/FpsOverlay'
 
 export default function App() {
   return (
@@ -60,6 +61,7 @@ export default function App() {
       <TouchControls />
       <TouchDisclaimer />
       <MapTransition />
+      <FpsOverlay />
     </>
   )
 }

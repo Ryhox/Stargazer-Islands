@@ -7,6 +7,8 @@ import { FLY, useWorld } from '../../state/useWorld'
 import { INTRO_PARALLAX } from '../introParallax'
 import { IS_PHONE, IS_TOUCH } from '../../input/device'
 import { getHeight } from '../terrain/terrain'
+import { FarCull } from './FarCull'
+import { PerfProbe } from './perfProbe'
 import { SPAWN_X, SPAWN_Z, SPAWN_LOOK } from './spawnConstants'
 import { smoothstep } from './palette'
 import { WIND } from '../terrain/loadNature'
@@ -166,7 +168,9 @@ function QualityDPR() {
   const quality = useWorld((s) => s.quality)
   useEffect(() => {
     const cap = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio, 2) : 2
-    let dpr = quality === 'Low' ? 1 : quality === 'Medium' ? 1.5 : cap
+    // Never render more pixels than the screen has (Medium used a fixed 1.5 — on a
+    // normal 1× display that was 2.25× the pixels for no visible detail).
+    let dpr = quality === 'Low' ? 1 : quality === 'Medium' ? Math.min(cap, 1.5) : cap
     if (IS_PHONE) dpr = Math.min(dpr, 1.25) // phones: keep the fill rate sane
     setDpr(dpr)
   }, [quality, setDpr])
@@ -286,13 +290,15 @@ export function Experience() {
   return (
     <>
       <RevealPatcher />
+      <PerfProbe />
       <QualityDPR />
       <TimeDriver />
       <CinematicCamera />
       <Player />
       <DayNight />
-      <LightShafts />
       <ArchLightShafts />
+      {/* The home isle stays visible from afar; only its fine detail (ground
+          cover inside NatureField, fireflies, sun shafts) is culled out at sea. */}
       <Island />
       <Campfire />
       <HilltopBenches />
@@ -303,12 +309,16 @@ export function Experience() {
       <Suspense fallback={null}>
         <MessageBoard />
       </Suspense>
-      <BoardCamera />
       <Suspense fallback={null}>
         <Occluders>
           <NatureField />
         </Occluders>
       </Suspense>
+      <FarCull>
+        <LightShafts />
+        <Particles />
+      </FarCull>
+      <BoardCamera />
       <ArchipelagoLand />
       <Seabed />
       <RippleSim />
@@ -318,7 +328,6 @@ export function Experience() {
       <OceanHorizon />
       <RowingBoat />
       <BoatPrompt />
-      <Particles />
       <Postfx />
     </>
   )

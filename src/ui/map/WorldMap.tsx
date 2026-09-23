@@ -2,7 +2,7 @@ import { type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEve
 import { useWorld } from '../../state/useWorld'
 import { IS_TOUCH } from '../../input/device'
 import { NAV } from '../../scene/boat/boatState'
-import { goToIsland, returnHome } from '../../scene/core/mapTransition'
+import { arriveAtIsland, goToIsland, returnHome } from '../../scene/core/mapTransition'
 import { introActions } from '../intro/introActions'
 import { requestLock } from '../../scene/core/pointerLock'
 import {
@@ -19,6 +19,7 @@ import { HOME_REGION_R, getHeight } from '../../scene/terrain/terrain'
 import { buildMap, hexToRgb, landRamp, seaRamp } from './mapRender'
 import { useT } from '../../i18n/index'
 import { HAND } from '../theme'
+import { useLoadStatus } from '../intro/loadStatus'
 
 // Paint each archipelago map pixel with the biome palette of the island beneath
 // it (grey Bleakshoal, white Frostfell, sandy desert, …); open sea uses the ramp.
@@ -57,6 +58,19 @@ function mapHeight(x: number, z: number): number {
     getHeight(x, z) * 0.4 +
     (getHeight(x + BLUR, z) + getHeight(x - BLUR, z) + getHeight(x, z + BLUR) + getHeight(x, z - BLUR)) * 0.15
   )
+}
+
+// The map image is ~400k height samples — far too slow to paint on open (it was a
+// visible FPS dip every time M was pressed). It's baked once per island set, in
+// idle time right after loading, and reused by every open.
+let _bake: { islands: IslandInstance[]; rWorld: number; raster: HTMLCanvasElement; labels: { name: string; x: number; z: number }[] } | null = null
+function worldMapBake(islands: IslandInstance[]) {
+  if (!_bake || _bake.islands !== islands) {
+    const rWorld = Math.max(archipelagoExtent() + 40, GROUP_RING + 140)
+    // The shared world height field: the real home isle at the centre + every isle.
+    _bake = { islands, rWorld, raster: buildMap(mapHeight, rWorld, 640, archMapColor), labels: groupLabels(islands) }
+  }
+  return _bake
 }
 
 // The countdown shares the archipelago's UTC-aligned 5-min refresh clock
@@ -114,7 +128,7 @@ export function WorldMap() {
 
   // Before the game has started the map is the start screen: closing it (or
   // picking the home isle) begins on foot at the usual spawn via the fly-in; a
-  // stargazer island begins the same way, then sets sail there once live.
+  // stargazer island starts you right there, in the boat, with no fly-in.
   const close = () => {
     setMapOpen(false)
     if (useWorld.getState().started) requestLock()
@@ -124,7 +138,10 @@ export function WorldMap() {
     const ws = useWorld.getState()
     setMapOpen(false)
     if (!ws.started) {
-      introActions.handleEnter?.(dest === 'home' ? undefined : () => goToIsland(dest))
+      // Home isle → the usual fly-in to the spawn; a stargazer isle → start right
+      // there (no fly-in first).
+      if (dest === 'home') introActions.handleEnter?.()
+      else introActions.enterInstant?.(() => arriveAtIsland(dest))
       return
     }
     requestLock()
@@ -135,18 +152,27 @@ export function WorldMap() {
     }
   }
 
-  // M opens it (anywhere, once started); Esc closes it. Capture phase + stop-propagation so
-  // Esc beats the settings menu's own Esc handler when the map is up.
+  // M toggles it (typing an M in the search box doesn't count). Esc
+  // closes it into the settings menu — or, on the start screen, begins at home.
+  // Capture phase + stop-propagation so the settings menu's own Esc handler
+  // doesn't also react to the same key press.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const ws = useWorld.getState()
-      if (e.code === 'KeyM' && !ws.mapOpen && ws.started && !ws.menuOpen) {
+      const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
+      if (e.code === 'KeyM' && !ws.menuOpen && !typing && (ws.mapOpen || ws.started)) {
         e.preventDefault()
-        ws.setMapOpen(true)
-      } else if (e.code === 'Escape' && useWorld.getState().mapOpen) {
+        if (ws.mapOpen) close() // on the start screen this begins at home, like ✕
+        else ws.setMapOpen(true)
+      } else if (e.code === 'Escape' && ws.mapOpen) {
         e.preventDefault()
         e.stopImmediatePropagation()
-        close()
+        if (ws.started) {
+          ws.setMapOpen(false)
+          ws.setMenuOpen(true) // the cursor stays free for the settings sheet
+        } else {
+          close()
+        }
       }
     }
     window.addEventListener('keydown', onKey, true)
@@ -204,14 +230,24 @@ export function WorldMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapOpen])
 
-  // Build the raster + run the marker draw loop while open.
+  // Pre-bake the map image in idle time whenever the island set changes, so
+  // opening the map (M) never has to paint it.
+  const warmReady = useLoadStatus((s) => s.warmReady)
+  useEffect(() => {
+    if (!warmReady) return
+    const run = () => worldMapBake(useArchipelago.getState().islands)
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 5000 })
+    else setTimeout(run, 2000)
+  }, [warmReady, islands])
+
+  // Use the baked raster + run the marker draw loop while open.
   useEffect(() => {
     if (!mapOpen) return
-    const rWorld = Math.max(archipelagoExtent() + 40, GROUP_RING + 140)
+    const baked = worldMapBake(islands)
+    const rWorld = baked.rWorld
     rWorldRef.current = rWorld
-    // The shared world height field: the real home isle at the centre + every isle.
-    rasterRef.current = buildMap(mapHeight, rWorld, 640, archMapColor)
-    labelsRef.current = groupLabels(islands)
+    rasterRef.current = baked.raster
+    labelsRef.current = baked.labels
 
     const canvas = canvasRef.current
     if (!canvas) return

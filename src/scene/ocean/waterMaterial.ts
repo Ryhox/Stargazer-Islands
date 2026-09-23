@@ -31,11 +31,13 @@ const vertex = /* glsl */ `
 
   void main() {
     vec3 pos = position;            // geometry pre-rotated into the XZ plane
-    float h = oceanWave(pos.xz, uTime);
+    // The mesh follows the camera, so waves/ripples are sampled in WORLD space.
+    vec2 wxz = (modelMatrix * vec4(position, 1.0)).xz;
+    float h = oceanWave(wxz, uTime);
     vWaveH = h;
 
     // live ripple field (cursor / swimmer / fish) adds a small local displacement
-    vec2 ruv = (pos.xz - uRippleCenter) / uRippleSize + 0.5;
+    vec2 ruv = (wxz - uRippleCenter) / uRippleSize + 0.5;
     vRipUV = ruv;
     float rip = 0.0;
     if (uRippleOn > 0.5 && ruv.x > 0.0 && ruv.x < 1.0 && ruv.y > 0.0 && ruv.y < 1.0) {
@@ -44,7 +46,7 @@ const vertex = /* glsl */ `
     vRip = rip;
     pos.y += h + rip * 0.35; // small wave bump — the FOAM (below) does the visible work
 
-    vec3 n = oceanNormal(pos.xz, uTime, 0.5);
+    vec3 n = oceanNormal(wxz, uTime, 0.5);
     vec4 world = modelMatrix * vec4(pos, 1.0);
     vWorld = world.xyz;
     vNormal = n;

@@ -165,6 +165,9 @@ export function Player() {
 
   useEffect(() => {
     if (!started) return
+    // Started straight at a stargazer isle from the start map (enterInstant): you're
+    // already seated in the boat there — don't pull you back to the home spawn.
+    if (BOAT.mode === 'sailing') return
     // Spawn at EXACTLY the fly-in's end pose (shared SPAWN_X/Z/LOOK) so control hands
     // over with no jump in position or look direction.
     const spawnY = Math.max(getHeight(SPAWN_X, SPAWN_Z), 0.15) + EYE

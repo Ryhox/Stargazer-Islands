@@ -10,11 +10,13 @@ import {
   buildArchMapProps,
   groupLabels,
   useArchipelago,
+  type IslandInstance,
 } from '../../scene/archipelago/archipelago'
 import { nextRefreshAt } from '../../scene/archipelago/stargazers'
 import { buildMap, hexToRgb, landRamp, seaRamp } from '../map/mapRender'
 import { useT } from '../../i18n/index'
 import { HAND } from '../theme'
+import { useLoadStatus } from '../intro/loadStatus'
 
 // Same UTC-aligned 5-min refresh clock the big World map counts down to, so both
 // readouts hit zero together when the stargazer list re-pulls. Mirrors WorldMap's
@@ -49,6 +51,33 @@ const MM = 148 // on-screen size (css px)
 
 const PROP_COLOR = { tree: '#2f5e2a', rock: '#8b8b92', lamp: '#f3c969' } as const
 
+// Baked minimap layers, built ONCE (home) / once per island set (archipelago) and
+// kept. Rebuilding on every home ↔ isles region flip sampled ~100k heights in one
+// frame — a visible hitch each time you sailed past the home isle's waters.
+type Bake = { raster: HTMLCanvasElement; rWorld: number; props: MapProp[]; labels: { name: string; x: number; z: number }[] }
+let _home: Bake | null = null
+let _arch: { islands: IslandInstance[]; bake: Bake } | null = null
+function homeBake(): Bake {
+  if (!_home) _home = { raster: buildMap(getHeight, R_WORLD_HOME, 320), rWorld: R_WORLD_HOME, props: buildMapProps(), labels: [] }
+  return _home
+}
+function archBake(islands: IslandInstance[]): Bake {
+  if (!_arch || _arch.islands !== islands) {
+    // One world: out on the isles the map spans everything (home isle included).
+    const rWorld = Math.max(R_WORLD_HOME, archipelagoExtent() + 30)
+    _arch = {
+      islands,
+      bake: {
+        raster: buildMap(getHeight, rWorld, 420, archMapColor),
+        rWorld,
+        props: [...homeBake().props, ...buildArchMapProps(islands)],
+        labels: groupLabels(islands),
+      },
+    }
+  }
+  return _arch.bake
+}
+
 export function Minimap() {
   const t = useT()
   const mapId = useWorld((s) => s.mapId)
@@ -66,15 +95,29 @@ export function Minimap() {
   const labelsRef = useRef<{ name: string; x: number; z: number }[]>([])
   const rWorldRef = useRef(R_WORLD_HOME)
 
+  // Bake both layers in idle time once the world is up (and again when the
+  // stargazer list changes), so the first sail never pays for it mid-drive.
+  const warmReady = useLoadStatus((s) => s.warmReady)
+  useEffect(() => {
+    if (!warmReady) return
+    const idle = (cb: () => void) => {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(cb, { timeout: 4000 })
+      else setTimeout(cb, 1500)
+    }
+    idle(() => {
+      homeBake()
+      idle(() => archBake(useArchipelago.getState().islands))
+    })
+  }, [warmReady, islands])
+
   useEffect(() => {
     if (!visible) return
     const isArch = mapId === 'archipelago'
-    const rWorld = isArch ? Math.max(R_WORLD_HOME, archipelagoExtent() + 30) : R_WORLD_HOME
-    rWorldRef.current = rWorld
-    // One world: out on the isles the map spans everything (home isle included).
-    islandRef.current = buildMap(getHeight, rWorld, isArch ? 420 : 320, isArch ? archMapColor : undefined)
-    propsRef.current = isArch ? [...buildMapProps(), ...buildArchMapProps(islands)] : buildMapProps()
-    labelsRef.current = isArch ? groupLabels(islands) : []
+    const baked = isArch ? archBake(islands) : homeBake()
+    rWorldRef.current = baked.rWorld
+    islandRef.current = baked.raster
+    propsRef.current = baked.props
+    labelsRef.current = baked.labels
 
     const canvas = canvasRef.current
     if (!canvas) return

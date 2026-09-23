@@ -229,7 +229,9 @@ export function DayNight() {
     // Refresh the IBL environment when the sky has shifted enough.
     const e = env.current
     e.frame++
-    if (e.rt === null || (e.frame % 10 === 0 && Math.abs(t - e.lastT) > 0.004)) {
+    // PMREM re-allocates + re-renders a full 256² cube each time (~50ms on an
+    // integrated GPU), so only refresh on a clear sky shift — the IBL is a soft fill.
+    if (e.rt === null || (e.frame % 30 === 0 && Math.abs(t - e.lastT) > 0.02)) {
       // Always capture PMREM with full sky opacity — keeps IBL consistent
       // regardless of the WORLD_ALPHA fade-in, preventing a lighting pop at game start.
       const savedAlpha = domeMat.uniforms.uAlpha.value

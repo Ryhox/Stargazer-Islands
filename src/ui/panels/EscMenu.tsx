@@ -1,5 +1,5 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react'
-import { useWorld, type Lang } from '../../state/useWorld'
+import { useWorld, QUALITY_ORDER, type Lang, type Quality } from '../../state/useWorld'
 import { requestLock, exitLock, cancelLock, isAcquiring } from '../../scene/core/pointerLock'
 import { BOARD_FOCUS } from '../../scene/boat/boardFocus'
 import { SIT } from '../../scene/interact/benchSit'
@@ -8,6 +8,7 @@ import { IS_TOUCH } from '../../input/device'
 import { useT, type StringKey } from '../../i18n/index'
 import { LANG_META, langMeta } from '../../i18n/langs'
 import { HAND } from '../theme'
+import { useLoadStatus } from '../intro/loadStatus'
 
 // A faithful recreation of the Alba "torn notepad" settings sheet: cream paper
 // with a punched spiral top edge, handwritten ink, tan sliders with a square
@@ -59,6 +60,7 @@ export function EscMenu() {
   const started  = useWorld(s => s.started)
   const menuOpen = useWorld(s => s.menuOpen)
   const quality  = useWorld(s => s.quality)
+  const showFps  = useWorld(s => s.showFps)
   const motionBlur       = useWorld(s => s.motionBlur)
   const motionBlurAmount = useWorld(s => s.motionBlurAmount)
   const volMusic = useWorld(s => s.volMusic)
@@ -66,7 +68,6 @@ export function EscMenu() {
   const invertX  = useWorld(s => s.invertX)
   const invertY  = useWorld(s => s.invertY)
   const [tab, setTab] = useState<Tab>('Settings')
-  const [applying, setApplying] = useState(false)
   const [extHref, setExtHref] = useState<string | null>(null) // pending external link → warn first
   const t = useT()
 
@@ -153,11 +154,6 @@ export function EscMenu() {
     requestLock()
   }
 
-  const cycleGraphics = () => {
-    useWorld.getState().cycleQuality()
-    setApplying(true)
-    window.setTimeout(() => setApplying(false), 600)
-  }
 
   const setMusic = (v: number) => {
     useWorld.getState().setVol('music', v)
@@ -171,10 +167,16 @@ export function EscMenu() {
     }
   }
 
-  if (!started || !menuOpen) return null
+  // The sheet's very first paint (fonts, images, gradients) costs a ~250ms freeze.
+  // Pay it once, invisibly, while the static start map is up (a slow frame there
+  // goes unnoticed) — so the first real Esc in play opens instantly.
+  const warmReady = useLoadStatus((s) => s.warmReady)
+  const prewarm = usePrewarm(warmReady && !started)
+  if (!prewarm && (!started || !menuOpen)) return null
+  const ghost = !(started && menuOpen)
 
   return (
-    <div style={sOverlay}>
+    <div style={ghost ? { ...sOverlay, opacity: 0.001, pointerEvents: 'none' } : sOverlay} aria-hidden={ghost || undefined}>
       <style>{INJECTED_CSS}</style>
 
       {/* The notepad sheet */}
@@ -200,7 +202,7 @@ export function EscMenu() {
           <div style={sContent}>
             {tab === 'Settings' && (
               <>
-                <ValueRow label={t('settings.graphics')} value={t(`quality.${quality}` as StringKey)} busy={applying} onClick={cycleGraphics} />
+                <GraphicsRow />
                 <Divider />
                 <LanguageRow />
                 <Divider />
@@ -229,6 +231,8 @@ export function EscMenu() {
 
                 <Toggle label={t('settings.invertX')} on={invertX} onClick={() => useWorld.getState().toggleInvert('x')} />
                 <Toggle label={t('settings.invertY')} on={invertY} onClick={() => useWorld.getState().toggleInvert('y')} />
+                <Divider />
+                <Toggle label={t('settings.showFps')} on={showFps} onClick={() => useWorld.getState().toggleShowFps()} />
               </>
             )}
 
@@ -261,6 +265,25 @@ export function EscMenu() {
 
 // A small confirm that pops before any link leaves for a website outside the
 // island, so visitors always opt in to navigating away.
+// True for a brief moment right after `when` turns on (see prewarm above).
+function usePrewarm(when: boolean): boolean {
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    if (!when) return
+    let off = 0
+    const run = () => {
+      setOn(true)
+      off = window.setTimeout(() => setOn(false), 400)
+    }
+    const id = window.setTimeout(run, 50)
+    return () => {
+      window.clearTimeout(id)
+      window.clearTimeout(off)
+    }
+  }, [when])
+  return on
+}
+
 function ExternalWarning({ href, onCancel, onConfirm }: { href: string; onCancel: () => void; onConfirm: () => void }) {
   const t = useT()
   let host = href
@@ -290,20 +313,69 @@ function ExternalWarning({ href, onCancel, onConfirm }: { href: string; onCancel
   )
 }
 
-function ValueRow({
-  label, value, onClick, busy,
-}: { label: string; value: string; onClick?: () => void; busy?: boolean }) {
+// The Graphics picker — same dropdown as the Language one below: closed it shows
+// the current level; tapped it lists Low / Medium / High. Switching rebuilds the
+// post stack, so the row shows a short "applying" spinner.
+function GraphicsRow() {
   const t = useT()
+  const quality = useWorld((s) => s.quality)
+  const [open, setOpen] = useState(false)
+  const [applying, setApplying] = useState(false)
+  const wrap = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  const pick = (q: Quality) => {
+    setOpen(false)
+    if (q === useWorld.getState().quality) return
+    useWorld.getState().setQuality(q)
+    setApplying(true)
+    window.setTimeout(() => setApplying(false), 600)
+  }
+
   return (
-    <div className="alba-row" style={{ ...sRow, cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
-      <span style={sRowText}>{label}</span>
-      <span style={sValue}>{busy ? t('settings.applying') : value}</span>
-      {busy ? <Spinner /> : onClick && <Chevron />}
+    <div ref={wrap} style={{ position: 'relative' }}>
+      <div className="alba-row" style={{ ...sRow, cursor: 'pointer' }} onClick={() => setOpen((v) => !v)}>
+        <span style={sRowText}>{t('settings.graphics')}</span>
+        <span style={sValue}>{applying ? t('settings.applying') : t(`quality.${quality}` as StringKey)}</span>
+        {applying ? (
+          <Spinner />
+        ) : (
+          <span style={{ display: 'flex', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+            <Chevron />
+          </span>
+        )}
+      </div>
+      {open && (
+        <div style={{ ...sLangMenu, maxHeight: 'none', background: '#f6efda' }}>
+          {QUALITY_ORDER.map((q) => {
+            const active = q === quality
+            return (
+              <div
+                key={q}
+                className="alba-row"
+                style={{ ...sLangItem, background: active ? HIGHLIGHT : 'transparent' }}
+                onClick={() => pick(q)}
+              >
+                <span style={{ ...sLangName, color: active ? INK_DARK : INK }}>{t(`quality.${q}` as StringKey)}</span>
+                {active && <Check />}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
 
-// The Language picker: closed it reads like a ValueRow (flag + native name); tapped
+// The Language picker: closed it reads like a plain settings row (flag + native name); tapped
 // it drops a flat, slightly translucent cream popover of all languages so the world
 // stays faintly visible behind it (no glass/blur — just a low-opacity paper). Picks
 // write through to the store, which persists + re-renders the whole UI live.

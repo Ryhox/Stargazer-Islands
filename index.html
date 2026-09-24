@@ -1,28 +1,187 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>&#8203;</title>
+
+  <!-- ── Primary SEO ─────────────────────────────────────────────────────── -->
+  <title>Stargazer Islands — Interactive Three.js 3D Portfolio &amp; GitHub Stargazer World</title>
   <meta name="description"
-    content="a cozy island" />
+    content="Stargazer Islands is an open-source Three.js 3D portfolio by Ryhox: explore a cozy island, sail a boat, and find a unique island for every GitHub stargazer. Built with React Three Fiber, TypeScript &amp; WebGL." />
+  <meta name="keywords"
+    content="threejs portfolio, three.js portfolio, threejs project, three.js project, 3D portfolio, interactive 3D portfolio, threejs github, three.js github, stargazer github, github stargazers, stargazer islands, react three fiber portfolio, r3f portfolio, webgl portfolio, 3D website, threejs game, open world browser game, low poly island, developer portfolio, creative developer, Ryhox, Emanuel Pfeifer" />
+  <meta name="author" content="Emanuel Pfeifer (Ryhox)" />
+  <meta name="creator" content="Ryhox" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1" />
+  <link rel="canonical" href="https://threejs.ryhox.dev/" />
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+  <meta name="theme-color" content="#0c0a18" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="application-name" content="Stargazer Islands" />
+  <meta name="apple-mobile-web-app-title" content="Stargazer Islands" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- ── Open Graph (Discord, WhatsApp, LinkedIn, Facebook …) ────────────── -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Stargazer Islands" />
+  <meta property="og:title" content="Stargazer Islands — Interactive Three.js 3D Portfolio" />
+  <meta property="og:description"
+    content="Explore a cozy 3D island built with Three.js &amp; React Three Fiber. Star the GitHub repo and get your own permanent island in the archipelago." />
+  <meta property="og:url" content="https://threejs.ryhox.dev/" />
+  <meta property="og:image" content="https://threejs.ryhox.dev/og-image.jpg" />
+  <meta property="og:image:secure_url" content="https://threejs.ryhox.dev/og-image.jpg" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Stargazer Islands — a cozy low-poly Three.js island with a stone path, trees and flowers" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale:alternate" content="de_DE" />
+
+  <!-- ── Twitter / X ─────────────────────────────────────────────────────── -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Stargazer Islands — Interactive Three.js 3D Portfolio" />
+  <meta name="twitter:description"
+    content="A cozy open-source Three.js world. Star the GitHub repo and your own island appears in the archipelago." />
+  <meta name="twitter:image" content="https://threejs.ryhox.dev/og-image.jpg" />
+  <meta name="twitter:image:alt" content="Stargazer Islands — a cozy low-poly Three.js island with a stone path, trees and flowers" />
+
+  <!-- ── Structured data (Google rich results / knowledge graph) ─────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://threejs.ryhox.dev/#website",
+        "url": "https://threejs.ryhox.dev/",
+        "name": "Stargazer Islands",
+        "alternateName": ["Stargazer Islands Three.js Portfolio", "Ryhox Three.js Portfolio", "threejs.ryhox.dev"],
+        "description": "An interactive Three.js 3D portfolio and GitHub stargazer world.",
+        "inLanguage": ["en", "de", "es", "fr", "it", "pt", "ru", "zh", "ja", "ko"],
+        "publisher": { "@id": "https://threejs.ryhox.dev/#person" }
+      },
+      {
+        "@type": "Person",
+        "@id": "https://threejs.ryhox.dev/#person",
+        "name": "Emanuel Pfeifer",
+        "alternateName": "Ryhox",
+        "url": "https://threejs.ryhox.dev/",
+        "image": "https://threejs.ryhox.dev/models/me.jpg",
+        "jobTitle": "Creative Developer",
+        "knowsAbout": ["Three.js", "WebGL", "React Three Fiber", "React", "TypeScript", "3D Web Development", "Creative Coding", "GLSL Shaders"],
+        "sameAs": ["https://github.com/Ryhox", "https://ryhox.dev"]
+      },
+      {
+        "@type": ["VideoGame", "WebApplication"],
+        "@id": "https://threejs.ryhox.dev/#app",
+        "name": "Stargazer Islands",
+        "url": "https://threejs.ryhox.dev/",
+        "description": "A cozy, explorable Three.js 3D portfolio. Walk the island, sail a boat, swim, sit by the campfire, and visit a procedurally generated island for every GitHub stargazer of the repository.",
+        "image": "https://threejs.ryhox.dev/og-image.jpg",
+        "screenshot": "https://threejs.ryhox.dev/og-image.jpg",
+        "applicationCategory": "GameApplication",
+        "applicationSubCategory": "3D Portfolio",
+        "genre": ["Exploration", "Cozy", "Open World", "Sandbox"],
+        "gamePlatform": ["Web browser", "Desktop", "Mobile"],
+        "operatingSystem": "Any (WebGL-capable browser)",
+        "playMode": "SinglePlayer",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "keywords": "threejs portfolio, three.js project, 3D portfolio, react three fiber, webgl, github stargazers, stargazer islands",
+        "author": { "@id": "https://threejs.ryhox.dev/#person" },
+        "creator": { "@id": "https://threejs.ryhox.dev/#person" },
+        "inLanguage": ["en", "de", "es", "fr", "it", "pt", "ru", "zh", "ja", "ko"],
+        "sameAs": "https://github.com/Ryhox/Stargazer-Islands"
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": "https://threejs.ryhox.dev/#code",
+        "name": "Stargazer Islands (source code)",
+        "description": "Open-source Three.js / React Three Fiber 3D portfolio where every GitHub stargazer gets their own island.",
+        "codeRepository": "https://github.com/Ryhox/Stargazer-Islands",
+        "programmingLanguage": ["TypeScript", "GLSL"],
+        "runtimePlatform": ["Three.js", "React Three Fiber", "WebGL", "Vite"],
+        "license": "https://opensource.org/licenses/MIT",
+        "author": { "@id": "https://threejs.ryhox.dev/#person" },
+        "targetProduct": { "@id": "https://threejs.ryhox.dev/#app" }
+      }
+    ]
+  }
+  </script>
+
+  <!-- ── Icons / manifest ─────────────────────────────────────────────────── -->
+  <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
+  <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+  <link rel="shortcut icon" href="/favicon/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+  <link rel="manifest" href="/favicon/site.webmanifest" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;700;800&family=Patrick+Hand&display=swap" rel="stylesheet" />
   <!-- CJK + Korean fallbacks: Patrick Hand / Nunito are Latin(+Cyrillic) only, so
        Chinese / Japanese / Korean glyphs render in these rounded Noto faces instead. -->
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
-  <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
-  <link rel="shortcut icon" href="/favicon/favicon.ico" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
-  <meta name="apple-mobile-web-app-title" content="🌙" />
-  <link rel="manifest" href="/favicon/site.webmanifest" />
+
+  <style>
+    /* Text alternative for the WebGL canvas: read by screen readers and search
+       engines, visually hidden because the 3D scene shows the same thing. */
+    .sr-only {
+      position: absolute !important;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
 </head>
 
 <body>
   <div id="root"></div>
+
+  <!-- Everything the 3D scene shows, as plain text. Kept outside #root so React
+       doesn't replace it, and it stays in the DOM for crawlers and assistive tech. -->
+  <main class="sr-only" aria-label="About Stargazer Islands">
+    <h1>Stargazer Islands — an interactive Three.js 3D portfolio</h1>
+    <p>
+      Stargazer Islands is the open-source 3D portfolio of Emanuel Pfeifer (Ryhox), built with
+      <strong>Three.js</strong>, <strong>React Three Fiber</strong>, TypeScript and custom GLSL shaders.
+      Walk across a cozy low-poly island, sit by the campfire, swim under water, board the boat and sail an
+      open ocean with a full day and night cycle — right in your browser, no download needed.
+    </p>
+    <h2>Every GitHub stargazer gets their own island</h2>
+    <p>
+      Star the <a href="https://github.com/Ryhox/Stargazer-Islands">Stargazer Islands GitHub repository</a>
+      and a permanent island appears for you in the archipelago within about five minutes. Its position comes
+      from your star order; its region, look and size are generated from your GitHub username — from common
+      Wildwood Reach forests to a rare Huge Sakura Grove in Bloomtide Vale.
+    </p>
+    <h2>Projects</h2>
+    <ul>
+      <li><a href="https://github.com/Ryhox/Stargazer-Islands">Stargazer Islands</a> — this Three.js portfolio</li>
+      <li><a href="https://pokyh.com">Pokyh</a> — a modern TypeScript web app</li>
+      <li><a href="https://ai.ryhox.dev">Wieland-AI</a> — a personal AI assistant</li>
+      <li><a href="https://minesweeper.ryhox.dev">Minesweeper</a> — the classic game rebuilt for the web</li>
+    </ul>
+    <p><a href="/about/">Read more about this Three.js project, how it's built and how stargazer islands work</a>.</p>
+    <p>Made by <a href="https://github.com/Ryhox">Ryhox on GitHub</a>.</p>
+  </main>
+
+  <noscript>
+    <p style="padding:24px;font-family:system-ui,sans-serif;color:#ffd9a0">
+      Stargazer Islands is an interactive Three.js 3D portfolio and needs JavaScript and WebGL.
+      <a href="/about/" style="color:#fff">Read about the project</a> or view the
+      <a href="https://github.com/Ryhox/Stargazer-Islands" style="color:#fff">source code on GitHub</a>.
+    </p>
+  </noscript>
+
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

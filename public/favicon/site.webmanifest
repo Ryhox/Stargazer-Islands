@@ -1,21 +1,25 @@
 {
-  "name": "🌙",
-  "short_name": "🌙",
+  "name": "Stargazer Islands — Three.js 3D Portfolio",
+  "short_name": "Stargazer Islands",
+  "description": "An interactive Three.js 3D portfolio where every GitHub stargazer gets their own island.",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
     {
-      "src": "/public/favicon/web-app-manifest-192x192.png",
+      "src": "/favicon/web-app-manifest-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/public/favicon/web-app-manifest-512x512.png",
+      "src": "/favicon/web-app-manifest-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#000000",
-  "background_color": "#000000",
-  "display": "standalone"
+  "theme_color": "#0c0a18",
+  "background_color": "#0c0a18",
+  "display": "standalone",
+  "categories": ["games", "entertainment", "developer"]
 }

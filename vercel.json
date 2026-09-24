@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "routes": [
+    {
+      "src": "/assets/(.*)",
+      "headers": { "cache-control": "public, max-age=31536000, immutable" },
+      "continue": true
+    },
+    { "src": "/about", "status": 308, "headers": { "Location": "/about/" } },
+    { "src": "/index.html", "status": 308, "headers": { "Location": "/" } },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "status": 308, "headers": { "Location": "/" } }
+  ]
+}

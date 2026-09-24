@@ -15,6 +15,11 @@ export default defineConfig({
     // (rather than per-package) so related modules stay in one chunk and keep a
     // safe initialization order.
     rollupOptions: {
+      // Two pages: the 3D app, and a static /about/ page with crawlable text for SEO.
+      input: {
+        main: 'index.html',
+        about: 'about/index.html',
+      },
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return
